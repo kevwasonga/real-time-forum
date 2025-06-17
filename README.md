@@ -1,1 +1,1 @@
-# real-time-forum
+A real-time forum website using HTML, CSS, Javascript, and Go. It has registration, login, post creation, commenting, and private messaging features using websockets. The project faced issues with concurrent access to shared data and websocket connections, resolved using Go channels and mutexes and a carefully designed protocol. 
