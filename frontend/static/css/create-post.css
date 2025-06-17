@@ -1,0 +1,102 @@
+.create-post-form {
+    padding: 20px;
+    margin-top: 50px;
+    margin-bottom: 20px;
+    max-width: 800px; /* Keep this for overall width */
+}
+
+.create-post-form h2 {
+    color: #ffffff;
+    margin-bottom: 20px;
+    font-size: 24px;
+}
+
+.create-post-form .form-group {
+    margin-bottom: 20px;
+}
+
+.create-post-form input[type="text"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.create-post-form textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+    resize: vertical;
+}
+
+.category-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    padding: 10px;
+}
+
+.category-checkbox {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+}
+
+.category-checkbox input[type="checkbox"] {
+    margin-right: 8px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.category-checkbox span {
+    font-size: 14px;
+    color: #ffffff;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: space-between; /* Change to space-between for equal spacing */
+    margin-top: 20px;
+}
+
+.cancel-post, .btn-primary {
+    padding: 12px; /* Set the same padding for both buttons */
+    border-radius: 4px;
+    flex: 1; /* Allow buttons to take equal space */
+    margin: 0 5px; /* Add margin for spacing between buttons */
+}
+
+.cancel-post {
+    color: #666;
+    background: #f0f0f0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: #007bff;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    background: #0056b3;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .category-checkboxes {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+    
+    .create-post-form {
+        margin: 10px;
+        padding: 15px;
+    }
+}

@@ -1,0 +1,474 @@
+/* Community Nexus - Animation Styles */
+
+/* Fade Animations */
+@keyframes nexus-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nexus-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes nexus-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nexus-fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nexus-fade-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes nexus-fade-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Scale Animations */
+@keyframes nexus-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes nexus-scale-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes nexus-bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Slide Animations */
+@keyframes nexus-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes nexus-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes nexus-slide-in-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes nexus-slide-in-down {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Rotation Animations */
+@keyframes nexus-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes nexus-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes nexus-heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.3);
+  }
+  28% {
+    transform: scale(1);
+  }
+  42% {
+    transform: scale(1.3);
+  }
+  70% {
+    transform: scale(1);
+  }
+}
+
+/* Shake Animation */
+@keyframes nexus-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-10px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(10px);
+  }
+}
+
+/* Wobble Animation */
+@keyframes nexus-wobble {
+  0% {
+    transform: translateX(0%);
+  }
+  15% {
+    transform: translateX(-25%) rotate(-5deg);
+  }
+  30% {
+    transform: translateX(20%) rotate(3deg);
+  }
+  45% {
+    transform: translateX(-15%) rotate(-3deg);
+  }
+  60% {
+    transform: translateX(10%) rotate(2deg);
+  }
+  75% {
+    transform: translateX(-5%) rotate(-1deg);
+  }
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+/* Typing Animation */
+@keyframes nexus-typing {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes nexus-blink {
+  0%, 50% {
+    border-color: transparent;
+  }
+  51%, 100% {
+    border-color: var(--nexus-primary);
+  }
+}
+
+/* Gradient Animation */
+@keyframes nexus-gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Float Animation */
+@keyframes nexus-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Glow Animation */
+@keyframes nexus-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(14, 165, 233, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(14, 165, 233, 0.8);
+  }
+}
+
+/* Animation Classes */
+.nexus-animate-fade-in {
+  animation: nexus-fade-in 0.5s ease-out;
+}
+
+.nexus-animate-fade-out {
+  animation: nexus-fade-out 0.5s ease-out;
+}
+
+.nexus-animate-fade-in-up {
+  animation: nexus-fade-in-up 0.6s ease-out;
+}
+
+.nexus-animate-fade-in-down {
+  animation: nexus-fade-in-down 0.6s ease-out;
+}
+
+.nexus-animate-fade-in-left {
+  animation: nexus-fade-in-left 0.6s ease-out;
+}
+
+.nexus-animate-fade-in-right {
+  animation: nexus-fade-in-right 0.6s ease-out;
+}
+
+.nexus-animate-scale-in {
+  animation: nexus-scale-in 0.4s ease-out;
+}
+
+.nexus-animate-scale-out {
+  animation: nexus-scale-out 0.4s ease-out;
+}
+
+.nexus-animate-bounce-in {
+  animation: nexus-bounce-in 0.8s ease-out;
+}
+
+.nexus-animate-slide-in-left {
+  animation: nexus-slide-in-left 0.5s ease-out;
+}
+
+.nexus-animate-slide-in-right {
+  animation: nexus-slide-in-right 0.5s ease-out;
+}
+
+.nexus-animate-slide-in-up {
+  animation: nexus-slide-in-up 0.5s ease-out;
+}
+
+.nexus-animate-slide-in-down {
+  animation: nexus-slide-in-down 0.5s ease-out;
+}
+
+.nexus-animate-rotate {
+  animation: nexus-rotate 2s linear infinite;
+}
+
+.nexus-animate-pulse {
+  animation: nexus-pulse 2s ease-in-out infinite;
+}
+
+.nexus-animate-heartbeat {
+  animation: nexus-heartbeat 1.5s ease-in-out infinite;
+}
+
+.nexus-animate-shake {
+  animation: nexus-shake 0.8s ease-in-out;
+}
+
+.nexus-animate-wobble {
+  animation: nexus-wobble 1s ease-in-out;
+}
+
+.nexus-animate-float {
+  animation: nexus-float 3s ease-in-out infinite;
+}
+
+.nexus-animate-glow {
+  animation: nexus-glow 2s ease-in-out infinite;
+}
+
+.nexus-animate-gradient {
+  background: linear-gradient(-45deg, #0ea5e9, #0284c7, #0369a1, #075985);
+  background-size: 400% 400%;
+  animation: nexus-gradient-shift 4s ease infinite;
+}
+
+/* Stagger Animation Delays */
+.nexus-stagger-1 {
+  animation-delay: 0.1s;
+}
+
+.nexus-stagger-2 {
+  animation-delay: 0.2s;
+}
+
+.nexus-stagger-3 {
+  animation-delay: 0.3s;
+}
+
+.nexus-stagger-4 {
+  animation-delay: 0.4s;
+}
+
+.nexus-stagger-5 {
+  animation-delay: 0.5s;
+}
+
+/* Hover Animations */
+.nexus-hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.nexus-hover-lift:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--nexus-shadow-xl);
+}
+
+.nexus-hover-scale {
+  transition: transform 0.3s ease;
+}
+
+.nexus-hover-scale:hover {
+  transform: scale(1.05);
+}
+
+.nexus-hover-rotate {
+  transition: transform 0.3s ease;
+}
+
+.nexus-hover-rotate:hover {
+  transform: rotate(5deg);
+}
+
+.nexus-hover-glow {
+  transition: box-shadow 0.3s ease;
+}
+
+.nexus-hover-glow:hover {
+  box-shadow: 0 0 20px rgba(14, 165, 233, 0.4);
+}
+
+/* Loading States */
+.nexus-loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.nexus-loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: nexus-loading-shimmer 1.5s infinite;
+}
+
+@keyframes nexus-loading-shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* Transition Classes */
+.nexus-transition-all {
+  transition: all 0.3s ease;
+}
+
+.nexus-transition-fast {
+  transition: all 0.15s ease;
+}
+
+.nexus-transition-slow {
+  transition: all 0.5s ease;
+}
+
+/* Responsive Animation Controls */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .nexus-animate-fade-in-up,
+  .nexus-animate-fade-in-down,
+  .nexus-animate-fade-in-left,
+  .nexus-animate-fade-in-right {
+    animation-duration: 0.4s;
+  }
+  
+  .nexus-hover-lift:hover {
+    transform: translateY(-2px);
+  }
+}

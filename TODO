@@ -1,0 +1,8 @@
+Liking  a comment
+
+listen to the click event from the frontend (done!)
+send the API request to the backend (done!)
+handle the response from the backend (WIP)
+display the repsonse to the user guided by a notification
+
+Replying to a comment

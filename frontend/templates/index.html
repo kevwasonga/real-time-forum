@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forum - Real-time Discussion Platform</title>
+    <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+    <link rel="alternate icon" href="/static/img/favicon.svg">
+
+    <!-- Modern CSS Framework and Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Custom Stylesheets -->
+    <link rel="stylesheet" href="/static/css/nexus-theme.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+    <link rel="stylesheet" href="/static/css/animations.css">
+
+    <!-- Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sans': ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        'nexus': {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen font-sans">
+    <!-- Application Container -->
+    <div id="app-container" class="min-h-screen">
+        <!-- Loading Spinner -->
+        <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50">
+            <div class="text-center">
+                <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-nexus-600 mx-auto"></div>
+                <p class="mt-4 text-gray-600 font-medium">Loading Community Nexus...</p>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div id="main-content" class="hidden">
+            <!-- Content will be dynamically loaded here -->
+        </div>
+    </div>
+
+    <!-- Enhanced JavaScript Components -->
+    <script src="/static/js/core/nexus-core.js"></script>
+    <script src="/static/js/components/nexus-auth.js"></script>
+    <script src="/static/js/components/nexus-navigation.js"></script>
+    <script src="/static/js/components/nexus-discussions.js"></script>
+    <script src="/static/js/components/nexus-messaging.js"></script>
+    <script src="/static/js/components/nexus-profile.js"></script>
+    <script src="/static/js/components/nexus-realtime.js"></script>
+    <script src="/static/js/nexus-app.js"></script>
+</body>
+</html>
