@@ -1,0 +1,28 @@
+# Project requirements file (contains sensitive project details)
+prompt.txt
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+
+# Environment files
+.env
+.env.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Upload directories
+uploads/
+temp/
