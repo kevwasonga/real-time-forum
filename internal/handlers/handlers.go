@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -107,33 +108,44 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	var req models.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("Login error - Invalid request body: %v", err)
 		RenderError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	// Validate input
 	if req.Identifier == "" || req.Password == "" {
+		log.Printf("Login error - Missing credentials")
 		RenderError(w, "Email/nickname and password are required", http.StatusBadRequest)
 		return
 	}
 
+	log.Printf("Login attempt for identifier: %s", req.Identifier)
+
 	// Authenticate user
 	user, err := auth.AuthenticateUser(req.Identifier, req.Password)
 	if err != nil {
+		log.Printf("Login error - Authentication failed: %v", err)
 		RenderError(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
+	log.Printf("User authenticated successfully: %s", user.ID)
+
 	// Create session
 	session, err := auth.CreateSession(user.ID)
 	if err != nil {
+		log.Printf("Login error - Failed to create session: %v", err)
 		RenderError(w, "Failed to create session", http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("Session created successfully: %s", session.ID)
+
 	// Set session cookie
 	auth.SetSessionCookie(w, session.ID)
 
+	log.Printf("Login successful for user: %s", user.Nickname)
 	RenderSuccess(w, "Login successful", user)
 }
 

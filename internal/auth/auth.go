@@ -52,7 +52,7 @@ func CreateSession(userID string) (*models.Session, error) {
 	}
 
 	_, err := database.DB.Exec(`
-		INSERT INTO sessions (id, user_id, expires_at, created_at)
+		INSERT INTO sessions (session_id, user_id, expires_at, created_at)
 		VALUES (?, ?, ?, ?)
 	`, session.ID, session.UserID, session.ExpiresAt, session.CreatedAt)
 
@@ -67,9 +67,9 @@ func CreateSession(userID string) (*models.Session, error) {
 func GetSessionByID(sessionID string) (*models.Session, error) {
 	session := &models.Session{}
 	err := database.DB.QueryRow(`
-		SELECT id, user_id, expires_at, created_at
+		SELECT session_id, user_id, expires_at, created_at
 		FROM sessions
-		WHERE id = ? AND expires_at > ?
+		WHERE session_id = ? AND expires_at > ?
 	`, sessionID, time.Now()).Scan(
 		&session.ID,
 		&session.UserID,
@@ -89,7 +89,7 @@ func GetSessionByID(sessionID string) (*models.Session, error) {
 
 // DeleteSession deletes a session
 func DeleteSession(sessionID string) error {
-	_, err := database.DB.Exec("DELETE FROM sessions WHERE id = ?", sessionID)
+	_, err := database.DB.Exec("DELETE FROM sessions WHERE session_id = ?", sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to delete session: %v", err)
 	}

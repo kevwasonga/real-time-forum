@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -304,7 +305,7 @@ func markMessagesAsRead(receiverID, senderID string) error {
 	return err
 }
 
-// UsersHandler handles user listing for messaging
+// UsersHandler handles user listing for messaging and friends
 func UsersHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -317,36 +318,82 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get search query
+	// Get query parameters
 	search := r.URL.Query().Get("search")
+	sortBy := r.URL.Query().Get("sort")
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+
+	// Set defaults
+	limit := 20
+	offset := 0
+
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	if offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
 
 	var query string
 	var args []interface{}
 
+	// Base query
+	baseQuery := `
+		SELECT id, nickname, first_name, last_name, avatar_url, created_at
+		FROM users
+		WHERE id != ?
+	`
+
+	// Add search condition
 	if search != "" {
-		query = `
-			SELECT id, nickname, first_name, last_name, avatar_url
-			FROM users
-			WHERE id != ? AND (
-				nickname LIKE ? OR 
-				first_name LIKE ? OR 
-				last_name LIKE ?
-			)
-			ORDER BY nickname ASC
-			LIMIT 20
-		`
-		searchPattern := "%" + search + "%"
-		args = []interface{}{user.ID, searchPattern, searchPattern, searchPattern}
-	} else {
-		query = `
-			SELECT id, nickname, first_name, last_name, avatar_url
-			FROM users
-			WHERE id != ?
-			ORDER BY nickname ASC
-			LIMIT 20
-		`
-		args = []interface{}{user.ID}
+		baseQuery += ` AND (
+			nickname LIKE ? OR
+			first_name LIKE ? OR
+			last_name LIKE ?
+		)`
 	}
+
+	// Add ordering
+	switch sortBy {
+	case "newest":
+		baseQuery += ` ORDER BY created_at DESC`
+	case "oldest":
+		baseQuery += ` ORDER BY created_at ASC`
+	case "alphabetical":
+		baseQuery += ` ORDER BY nickname ASC`
+	case "active":
+		// Order by users who have been active recently
+		baseQuery += ` ORDER BY (
+			SELECT MAX(last_seen) FROM online_users WHERE user_id = users.id
+		) DESC NULLS LAST, created_at DESC`
+	case "random":
+		baseQuery += ` ORDER BY RANDOM()`
+	case "recent":
+		baseQuery += ` ORDER BY created_at DESC`
+	default:
+		baseQuery += ` ORDER BY nickname ASC`
+	}
+
+	// Add limit and offset
+	baseQuery += ` LIMIT ? OFFSET ?`
+
+	// Prepare arguments
+	args = []interface{}{user.ID}
+
+	if search != "" {
+		searchPattern := "%" + search + "%"
+		args = append(args, searchPattern, searchPattern, searchPattern)
+	}
+
+	args = append(args, limit, offset)
+
+	query = baseQuery
 
 	rows, err := database.DB.Query(query, args...)
 	if err != nil {
@@ -358,7 +405,7 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 	var users []models.User
 	for rows.Next() {
 		var u models.User
-		err := rows.Scan(&u.ID, &u.Nickname, &u.FirstName, &u.LastName, &u.AvatarURL)
+		err := rows.Scan(&u.ID, &u.Nickname, &u.FirstName, &u.LastName, &u.AvatarURL, &u.CreatedAt)
 		if err != nil {
 			RenderError(w, "Failed to scan user", http.StatusInternalServerError)
 			return

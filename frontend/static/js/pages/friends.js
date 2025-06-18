@@ -47,10 +47,48 @@ window.FriendsPage = {
                     <div id="find-tab" class="tab-content">
                         <div class="section-header">
                             <h2>Find Friends</h2>
+                            <p>Discover and connect with other users</p>
                         </div>
-                        <div class="search-section">
-                            <input type="text" id="friend-search" placeholder="Search for users..." class="search-input">
-                            <div id="search-results" class="search-results"></div>
+
+                        <div class="find-friends-container">
+                            <!-- Search Section -->
+                            <div class="search-section">
+                                <div class="search-input-wrapper">
+                                    <input type="text" id="friend-search" placeholder="Search by name or nickname..." class="search-input">
+                                    <div class="search-icon">🔍</div>
+                                </div>
+                                <div id="search-suggestions" class="search-suggestions"></div>
+                                <div id="search-results" class="search-results"></div>
+                            </div>
+
+                            <!-- Browse Users Section -->
+                            <div class="browse-section">
+                                <div class="browse-header">
+                                    <h3>Browse Users</h3>
+                                    <div class="browse-filters">
+                                        <select id="sort-users">
+                                            <option value="newest">Newest Members</option>
+                                            <option value="active">Most Active</option>
+                                            <option value="alphabetical">Alphabetical</option>
+                                        </select>
+                                        <button id="load-more-users" class="btn btn-outline btn-sm">Load More</button>
+                                    </div>
+                                </div>
+                                <div id="browse-results" class="browse-results">
+                                    <div class="loading-placeholder">Loading users...</div>
+                                </div>
+                            </div>
+
+                            <!-- Suggested Friends Section -->
+                            <div class="suggestions-section">
+                                <div class="suggestions-header">
+                                    <h3>Suggested Friends</h3>
+                                    <p>Based on mutual connections and activity</p>
+                                </div>
+                                <div id="suggested-friends" class="suggested-friends">
+                                    <div class="loading-placeholder">Loading suggestions...</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -58,6 +96,8 @@ window.FriendsPage = {
         `;
 
         await this.loadFriendsData();
+        await this.loadBrowseUsers();
+        await this.loadSuggestedFriends();
         this.bindEvents();
     },
 
@@ -68,10 +108,27 @@ window.FriendsPage = {
             btn.addEventListener('click', this.switchTab.bind(this));
         });
 
-        // Friend search
+        // Friend search with suggestions
         const friendSearch = document.getElementById('friend-search');
         if (friendSearch) {
-            friendSearch.addEventListener('input', window.utils.debounce(this.searchUsers.bind(this), 300));
+            friendSearch.addEventListener('input', window.utils.debounce(this.handleSearchInput.bind(this), 300));
+            friendSearch.addEventListener('focus', this.showSearchSuggestions.bind(this));
+            friendSearch.addEventListener('blur', () => {
+                // Delay hiding suggestions to allow clicking
+                setTimeout(() => this.hideSearchSuggestions(), 200);
+            });
+        }
+
+        // Sort users dropdown
+        const sortUsers = document.getElementById('sort-users');
+        if (sortUsers) {
+            sortUsers.addEventListener('change', this.handleSortChange.bind(this));
+        }
+
+        // Load more users button
+        const loadMoreBtn = document.getElementById('load-more-users');
+        if (loadMoreBtn) {
+            loadMoreBtn.addEventListener('click', this.loadMoreUsers.bind(this));
         }
     },
 
@@ -279,14 +336,21 @@ window.FriendsPage = {
         }
     },
 
-    async searchUsers(event) {
+    async handleSearchInput(event) {
         const query = event.target.value.trim();
         const resultsContainer = document.getElementById('search-results');
-        
+        const suggestionsContainer = document.getElementById('search-suggestions');
+
         if (!resultsContainer) return;
-        
-        if (query.length < 2) {
+
+        if (query.length === 0) {
             resultsContainer.innerHTML = '';
+            suggestionsContainer.innerHTML = '';
+            return;
+        }
+
+        if (query.length < 2) {
+            this.showSearchSuggestions();
             return;
         }
 
@@ -294,10 +358,272 @@ window.FriendsPage = {
             const response = await window.api.getUsers({ search: query });
             if (response.success) {
                 this.renderSearchResults(response.data || []);
+                suggestionsContainer.innerHTML = '';
             }
         } catch (error) {
             console.error('Failed to search users:', error);
             resultsContainer.innerHTML = '<div class="error-message">Search failed</div>';
+        }
+    },
+
+    async showSearchSuggestions() {
+        const suggestionsContainer = document.getElementById('search-suggestions');
+        const searchInput = document.getElementById('friend-search');
+
+        if (!suggestionsContainer || !searchInput) return;
+
+        const query = searchInput.value.trim();
+        if (query.length >= 2) return; // Don't show suggestions if already searching
+
+        try {
+            // Get recent users or popular users as suggestions
+            const response = await window.api.getUsers({ limit: 8, sort: 'recent' });
+            if (response.success && response.data.length > 0) {
+                this.renderSearchSuggestions(response.data);
+            }
+        } catch (error) {
+            console.error('Failed to load search suggestions:', error);
+        }
+    },
+
+    hideSearchSuggestions() {
+        const suggestionsContainer = document.getElementById('search-suggestions');
+        if (suggestionsContainer) {
+            suggestionsContainer.innerHTML = '';
+        }
+    },
+
+    renderSearchSuggestions(users) {
+        const container = document.getElementById('search-suggestions');
+        if (!container) return;
+
+        // Filter out current user and existing friends
+        const currentUserID = window.auth.getCurrentUser().id;
+        const friendIDs = this.friends.map(f => f.userID);
+        const pendingIDs = this.pendingRequests.map(r => r.userID);
+
+        const filteredUsers = users.filter(user =>
+            user.id !== currentUserID &&
+            !friendIDs.includes(user.id) &&
+            !pendingIDs.includes(user.id)
+        ).slice(0, 5);
+
+        if (filteredUsers.length === 0) return;
+
+        container.innerHTML = `
+            <div class="suggestions-header-small">
+                <span>Recent users:</span>
+            </div>
+            ${filteredUsers.map(user => `
+                <div class="suggestion-item" data-user-name="${user.nickname}">
+                    <img src="${user.avatarURL || '/static/images/default-avatar.png'}"
+                         alt="${window.utils.escapeHtml(user.nickname)}'s avatar"
+                         class="suggestion-avatar">
+                    <span class="suggestion-name">${window.utils.escapeHtml(user.nickname)}</span>
+                </div>
+            `).join('')}
+        `;
+
+        // Bind click events for suggestions
+        const suggestionItems = container.querySelectorAll('.suggestion-item');
+        suggestionItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const userName = item.dataset.userName;
+                const searchInput = document.getElementById('friend-search');
+                if (searchInput) {
+                    searchInput.value = userName;
+                    this.handleSearchInput({ target: searchInput });
+                }
+            });
+        });
+    },
+
+    async loadBrowseUsers() {
+        const container = document.getElementById('browse-results');
+        if (!container) return;
+
+        try {
+            const sortBy = document.getElementById('sort-users')?.value || 'newest';
+            const response = await window.api.getUsers({
+                limit: 12,
+                sort: sortBy,
+                offset: 0
+            });
+
+            if (response.success) {
+                this.renderBrowseUsers(response.data || []);
+            }
+        } catch (error) {
+            console.error('Failed to load browse users:', error);
+            container.innerHTML = '<div class="error-message">Failed to load users</div>';
+        }
+    },
+
+    renderBrowseUsers(users) {
+        const container = document.getElementById('browse-results');
+        if (!container) return;
+
+        // Filter out current user and existing friends
+        const currentUserID = window.auth.getCurrentUser().id;
+        const friendIDs = this.friends.map(f => f.userID);
+        const pendingIDs = this.pendingRequests.map(r => r.userID);
+
+        const filteredUsers = users.filter(user =>
+            user.id !== currentUserID &&
+            !friendIDs.includes(user.id) &&
+            !pendingIDs.includes(user.id)
+        );
+
+        if (filteredUsers.length === 0) {
+            container.innerHTML = '<div class="no-users">No new users to discover</div>';
+            return;
+        }
+
+        container.innerHTML = filteredUsers.map(user => `
+            <div class="browse-user-card">
+                <img src="${user.avatarURL || '/static/images/default-avatar.png'}"
+                     alt="${window.utils.escapeHtml(user.nickname)}'s avatar"
+                     class="browse-avatar">
+                <div class="browse-info">
+                    <h4 class="browse-name">${window.utils.escapeHtml(user.nickname)}</h4>
+                    <p class="browse-full-name">${window.utils.escapeHtml(user.firstName)} ${window.utils.escapeHtml(user.lastName)}</p>
+                    <span class="browse-joined">Joined ${window.utils.formatDate(user.createdAt)}</span>
+                </div>
+                <div class="browse-actions">
+                    <button class="btn btn-primary btn-sm add-friend-btn" data-user-id="${user.id}">
+                        Add Friend
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        this.bindBrowseActions();
+    },
+
+    async loadSuggestedFriends() {
+        const container = document.getElementById('suggested-friends');
+        if (!container) return;
+
+        try {
+            // For now, get random users as suggestions
+            // In a real app, this would be based on mutual friends, interests, etc.
+            const response = await window.api.getUsers({
+                limit: 6,
+                sort: 'random'
+            });
+
+            if (response.success) {
+                this.renderSuggestedFriends(response.data || []);
+            }
+        } catch (error) {
+            console.error('Failed to load suggested friends:', error);
+            container.innerHTML = '<div class="error-message">Failed to load suggestions</div>';
+        }
+    },
+
+    renderSuggestedFriends(users) {
+        const container = document.getElementById('suggested-friends');
+        if (!container) return;
+
+        // Filter out current user and existing friends
+        const currentUserID = window.auth.getCurrentUser().id;
+        const friendIDs = this.friends.map(f => f.userID);
+        const pendingIDs = this.pendingRequests.map(r => r.userID);
+
+        const filteredUsers = users.filter(user =>
+            user.id !== currentUserID &&
+            !friendIDs.includes(user.id) &&
+            !pendingIDs.includes(user.id)
+        );
+
+        if (filteredUsers.length === 0) {
+            container.innerHTML = '<div class="no-suggestions">No suggestions available</div>';
+            return;
+        }
+
+        container.innerHTML = filteredUsers.map(user => `
+            <div class="suggested-friend-card">
+                <img src="${user.avatarURL || '/static/images/default-avatar.png'}"
+                     alt="${window.utils.escapeHtml(user.nickname)}'s avatar"
+                     class="suggested-avatar">
+                <div class="suggested-info">
+                    <h4 class="suggested-name">${window.utils.escapeHtml(user.nickname)}</h4>
+                    <p class="suggested-reason">Suggested for you</p>
+                </div>
+                <div class="suggested-actions">
+                    <button class="btn btn-primary btn-sm add-friend-btn" data-user-id="${user.id}">
+                        Add
+                    </button>
+                    <button class="btn btn-outline btn-sm dismiss-btn" data-user-id="${user.id}">
+                        Dismiss
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        this.bindSuggestedActions();
+    },
+
+    async handleSortChange(event) {
+        await this.loadBrowseUsers();
+    },
+
+    async loadMoreUsers() {
+        const container = document.getElementById('browse-results');
+        const currentUsers = container.querySelectorAll('.browse-user-card').length;
+
+        try {
+            const sortBy = document.getElementById('sort-users')?.value || 'newest';
+            const response = await window.api.getUsers({
+                limit: 12,
+                sort: sortBy,
+                offset: currentUsers
+            });
+
+            if (response.success && response.data.length > 0) {
+                const newUsersHtml = this.renderBrowseUsersHtml(response.data);
+                container.insertAdjacentHTML('beforeend', newUsersHtml);
+                this.bindBrowseActions();
+            } else {
+                const loadMoreBtn = document.getElementById('load-more-users');
+                if (loadMoreBtn) {
+                    loadMoreBtn.textContent = 'No more users';
+                    loadMoreBtn.disabled = true;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load more users:', error);
+        }
+    },
+
+    bindBrowseActions() {
+        const addFriendButtons = document.querySelectorAll('.browse-user-card .add-friend-btn');
+        addFriendButtons.forEach(btn => {
+            btn.addEventListener('click', this.handleAddFriend.bind(this));
+        });
+    },
+
+    bindSuggestedActions() {
+        const addFriendButtons = document.querySelectorAll('.suggested-friend-card .add-friend-btn');
+        addFriendButtons.forEach(btn => {
+            btn.addEventListener('click', this.handleAddFriend.bind(this));
+        });
+
+        const dismissButtons = document.querySelectorAll('.dismiss-btn');
+        dismissButtons.forEach(btn => {
+            btn.addEventListener('click', this.handleDismissSuggestion.bind(this));
+        });
+    },
+
+    handleDismissSuggestion(event) {
+        const button = event.target;
+        const card = button.closest('.suggested-friend-card');
+        if (card) {
+            card.style.opacity = '0';
+            card.style.transform = 'translateX(100px)';
+            setTimeout(() => {
+                card.remove();
+            }, 300);
         }
     },
 
