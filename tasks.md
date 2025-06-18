@@ -1,3 +1,4 @@
+## Create router and the index.html page
 ## Display Landing page 
 ## Create Navbar
 ## Implement Authentication
@@ -5,6 +6,8 @@
     -registration
     -logout
 ## Create user profile
+
+
 ## Implement post filters
 ## Implement posting
     -create post
