@@ -109,12 +109,20 @@ window.PostPage = {
                 `}
                 
                 <div id="comments-list" class="comments-list">
-                    ${this.renderComments(post.comments || [])}
+                    <div class="comments-loading">Loading comments...</div>
                 </div>
             </div>
         `;
 
         this.bindEvents(post);
+
+        // Render comments after a short delay for better UX
+        setTimeout(() => {
+            const commentsContainer = document.getElementById('comments-list');
+            if (commentsContainer) {
+                commentsContainer.innerHTML = this.renderComments(post.comments || []);
+            }
+        }, 300);
     },
 
     renderComments(comments) {
@@ -282,11 +290,24 @@ window.PostPage = {
 
             // Clear form and reload post
             form.reset();
-            await this.loadPost(postId);
 
             if (window.forumApp.notificationComponent) {
                 window.forumApp.notificationComponent.success('Comment posted successfully');
             }
+
+            // Add the new comment with animation
+            await this.loadPost(postId);
+
+            // Scroll to the new comment
+            setTimeout(() => {
+                const commentsSection = document.querySelector('.comments-section');
+                if (commentsSection) {
+                    commentsSection.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'end'
+                    });
+                }
+            }, 500);
 
         } catch (error) {
             console.error('Failed to post comment:', error);
