@@ -210,7 +210,7 @@ func getPostsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Build query
 	query := `
-		SELECT p.id, p.user_id, p.title, p.content, p.image_path, p.created_at, p.updated_at,
+		SELECT p.id, p.user_id, p.title, p.content, p.image_path, p.created_at,
 		       u.nickname, u.avatar_url,
 		       COALESCE(like_counts.like_count, 0) as like_count,
 		       COALESCE(like_counts.dislike_count, 0) as dislike_count,
@@ -218,11 +218,11 @@ func getPostsHandler(w http.ResponseWriter, r *http.Request) {
 		FROM posts p
 		JOIN users u ON p.user_id = u.id
 		LEFT JOIN (
-			SELECT post_id, 
+			SELECT post_id,
 			       SUM(CASE WHEN is_like = 1 THEN 1 ELSE 0 END) as like_count,
 			       SUM(CASE WHEN is_like = 0 THEN 1 ELSE 0 END) as dislike_count
-			FROM likes 
-			WHERE post_id IS NOT NULL 
+			FROM likes
+			WHERE post_id IS NOT NULL
 			GROUP BY post_id
 		) like_counts ON p.id = like_counts.post_id
 		LEFT JOIN (
@@ -254,7 +254,7 @@ func getPostsHandler(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var post models.Post
 		err := rows.Scan(
-			&post.ID, &post.UserID, &post.Title, &post.Content, &post.ImagePath, &post.CreatedAt, &post.UpdatedAt,
+			&post.ID, &post.UserID, &post.Title, &post.Content, &post.ImagePath, &post.CreatedAt,
 			&post.Author, &post.AuthorAvatar,
 			&post.LikeCount, &post.DislikeCount, &post.CommentCount,
 		)
@@ -295,55 +295,71 @@ func getPostsHandler(w http.ResponseWriter, r *http.Request) {
 func createPostHandler(w http.ResponseWriter, r *http.Request) {
 	user := auth.GetUserFromSession(r)
 	if user == nil {
+		log.Printf("Post creation error - Authentication required")
 		RenderError(w, "Authentication required", http.StatusUnauthorized)
 		return
 	}
 
+	log.Printf("Creating post for user: %s", user.ID)
+
 	var req models.PostRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("Post creation error - Invalid request body: %v", err)
 		RenderError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
+	log.Printf("Post request: Title=%s, Content length=%d, Categories=%v", req.Title, len(req.Content), req.Categories)
+
 	// Validate input
 	if req.Title == "" || req.Content == "" {
+		log.Printf("Post creation error - Missing title or content")
 		RenderError(w, "Title and content are required", http.StatusBadRequest)
 		return
 	}
 
 	// Insert post
 	result, err := database.DB.Exec(`
-		INSERT INTO posts (user_id, title, content, image_path, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, user.ID, req.Title, req.Content, req.ImagePath, time.Now(), time.Now())
+		INSERT INTO posts (user_id, title, content, image_path, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, user.ID, req.Title, req.Content, req.ImagePath, time.Now())
 
 	if err != nil {
+		log.Printf("Post creation error - Failed to insert post: %v", err)
 		RenderError(w, "Failed to create post", http.StatusInternalServerError)
 		return
 	}
 
 	postID, _ := result.LastInsertId()
+	log.Printf("Post created with ID: %d", postID)
 
 	// Insert categories
 	for _, category := range req.Categories {
 		if category != "" {
-			database.DB.Exec(`
+			_, err := database.DB.Exec(`
 				INSERT INTO post_categories (post_id, category)
 				VALUES (?, ?)
 			`, postID, category)
+			if err != nil {
+				log.Printf("Warning - Failed to insert category %s: %v", category, err)
+			}
 		}
 	}
 
 	// Get the created post
 	post, err := getPostByID(int(postID))
 	if err != nil {
+		log.Printf("Post creation error - Failed to retrieve created post: %v", err)
 		RenderError(w, "Failed to retrieve created post", http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("Post retrieved successfully: %s", post.Title)
+
 	// Broadcast new post to all users
 	websocket.BroadcastNewPost(post)
 
+	log.Printf("Post creation successful for user: %s", user.Nickname)
 	RenderSuccess(w, "Post created successfully", post)
 }
 
@@ -406,7 +422,7 @@ func getUserLikeStatus(userID string, postID *int, commentID *int) (*models.Like
 func getPostByID(postID int) (*models.Post, error) {
 	var post models.Post
 	err := database.DB.QueryRow(`
-		SELECT p.id, p.user_id, p.title, p.content, p.image_path, p.created_at, p.updated_at,
+		SELECT p.id, p.user_id, p.title, p.content, p.image_path, p.created_at,
 		       u.nickname, u.avatar_url,
 		       COALESCE(like_counts.like_count, 0) as like_count,
 		       COALESCE(like_counts.dislike_count, 0) as dislike_count,
@@ -428,7 +444,7 @@ func getPostByID(postID int) (*models.Post, error) {
 		) comment_counts ON p.id = comment_counts.post_id
 		WHERE p.id = ?
 	`, postID).Scan(
-		&post.ID, &post.UserID, &post.Title, &post.Content, &post.ImagePath, &post.CreatedAt, &post.UpdatedAt,
+		&post.ID, &post.UserID, &post.Title, &post.Content, &post.ImagePath, &post.CreatedAt,
 		&post.Author, &post.AuthorAvatar,
 		&post.LikeCount, &post.DislikeCount, &post.CommentCount,
 	)
