@@ -63,12 +63,29 @@ window.PostsPage = {
         // Keep the "All Categories" option and add others
         const currentValue = categoryFilter.value;
         categoryFilter.innerHTML = '<option value="">All Categories</option>';
-        
-        categories.forEach(category => {
+
+        // Add predefined categories
+        const predefinedCategories = [
+            'General', 'Technology', 'Sports', 'Entertainment', 'Gaming',
+            'Music', 'Movies', 'Food', 'Travel', 'Health', 'Education', 'Science'
+        ];
+
+        predefinedCategories.forEach(categoryName => {
+            const category = categories.find(c => c.name === categoryName);
             const option = document.createElement('option');
-            option.value = category.name;
-            option.textContent = `${category.name} (${category.postCount})`;
+            option.value = categoryName;
+            option.textContent = category ? `${categoryName} (${category.postCount})` : categoryName;
             categoryFilter.appendChild(option);
+        });
+
+        // Add any other categories that exist in the database but aren't in predefined list
+        categories.forEach(category => {
+            if (!predefinedCategories.includes(category.name)) {
+                const option = document.createElement('option');
+                option.value = category.name;
+                option.textContent = `${category.name} (${category.postCount})`;
+                categoryFilter.appendChild(option);
+            }
         });
 
         categoryFilter.value = currentValue;
