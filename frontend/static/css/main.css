@@ -1,46 +1,53 @@
 /* Forum - Modern Dark Theme CSS */
 
 :root {
-    /* Color Palette */
-    --primary-color: #3b82f6;
-    --primary-hover: #2563eb;
-    --secondary-color: #6b7280;
-    --success-color: #10b981;
-    --warning-color: #f59e0b;
-    --error-color: #ef4444;
-    
-    /* Dark Theme Colors */
-    --bg-primary: #0f172a;
-    --bg-secondary: #1e293b;
-    --bg-tertiary: #334155;
-    --text-primary: #f8fafc;
-    --text-secondary: #cbd5e1;
-    --text-muted: #64748b;
-    --border-color: #475569;
-    --border-light: #334155;
-    
+    /* Original Magic Colors */
+    --primary-color: #1a73e8;
+    --primary-hover: #1557b0;
+    --secondary-color: #5f6368;
+    --background-color: #0d1117;
+    --surface-color: #161b22;
+    --surface-hover: #21262d;
+    --text-color: #f0f6fc;
+    --text-secondary: #8b949e;
+    --text-muted: #656d76;
+    --border-color: #30363d;
+    --border-hover: #484f58;
+    --success-color: #238636;
+    --error-color: #da3633;
+    --warning-color: #d29922;
+    --info-color: #1f6feb;
+    --header-height: 64px;
+    --sidebar-width: 280px;
+    --chat-width: 320px;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.3s ease;
+    --transition-slow: 0.5s ease;
+
+    /* Compatibility aliases for existing code */
+    --bg-primary: var(--background-color);
+    --bg-secondary: var(--surface-color);
+    --bg-tertiary: var(--surface-hover);
+    --text-primary: var(--text-color);
+    --border-light: var(--border-color);
+    --transition-medium: var(--transition-normal);
+
     /* Spacing */
     --spacing-xs: 0.25rem;
     --spacing-sm: 0.5rem;
     --spacing-md: 1rem;
     --spacing-lg: 1.5rem;
     --spacing-xl: 2rem;
-    
+    --spacing-xxl: 3rem;
+
     /* Border Radius */
     --radius-sm: 0.25rem;
     --radius-md: 0.5rem;
     --radius-lg: 0.75rem;
     --radius-xl: 1rem;
-    
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    
-    /* Transitions */
-    --transition-fast: 0.15s ease-in-out;
-    --transition-normal: 0.3s ease-in-out;
-    --transition-slow: 0.5s ease-in-out;
 }
 
 /* Reset and Base Styles */
