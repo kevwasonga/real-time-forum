@@ -83,9 +83,9 @@ func CommentHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Insert comment
 	result, err := database.DB.Exec(`
-		INSERT INTO comments (post_id, user_id, parent_id, content, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, req.PostID, user.ID, req.ParentID, req.Content, time.Now(), time.Now())
+		INSERT INTO comments (post_id, user_id, parent_id, content, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, req.PostID, user.ID, req.ParentID, req.Content, time.Now())
 
 	if err != nil {
 		RenderError(w, "Failed to create comment", http.StatusInternalServerError)
@@ -254,18 +254,18 @@ func getPostWithComments(postID int) (*models.Post, error) {
 // getPostComments gets all comments for a post
 func getPostComments(postID int) ([]models.Comment, error) {
 	rows, err := database.DB.Query(`
-		SELECT c.id, c.post_id, c.user_id, c.parent_id, c.content, c.created_at, c.updated_at,
+		SELECT c.id, c.post_id, c.user_id, c.parent_id, c.content, c.created_at,
 		       u.nickname, u.avatar_url,
 		       COALESCE(like_counts.like_count, 0) as like_count,
 		       COALESCE(like_counts.dislike_count, 0) as dislike_count
 		FROM comments c
 		JOIN users u ON c.user_id = u.id
 		LEFT JOIN (
-			SELECT comment_id, 
+			SELECT comment_id,
 			       SUM(CASE WHEN is_like = 1 THEN 1 ELSE 0 END) as like_count,
 			       SUM(CASE WHEN is_like = 0 THEN 1 ELSE 0 END) as dislike_count
-			FROM likes 
-			WHERE comment_id IS NOT NULL 
+			FROM likes
+			WHERE comment_id IS NOT NULL
 			GROUP BY comment_id
 		) like_counts ON c.id = like_counts.comment_id
 		WHERE c.post_id = ?
@@ -280,7 +280,7 @@ func getPostComments(postID int) ([]models.Comment, error) {
 	for rows.Next() {
 		var comment models.Comment
 		err := rows.Scan(
-			&comment.ID, &comment.PostID, &comment.UserID, &comment.ParentID, &comment.Content, &comment.CreatedAt, &comment.UpdatedAt,
+			&comment.ID, &comment.PostID, &comment.UserID, &comment.ParentID, &comment.Content, &comment.CreatedAt,
 			&comment.Author, &comment.AuthorAvatar,
 			&comment.LikeCount, &comment.DislikeCount,
 		)
@@ -297,23 +297,23 @@ func getPostComments(postID int) ([]models.Comment, error) {
 func getCommentByID(commentID int) (*models.Comment, error) {
 	var comment models.Comment
 	err := database.DB.QueryRow(`
-		SELECT c.id, c.post_id, c.user_id, c.parent_id, c.content, c.created_at, c.updated_at,
+		SELECT c.id, c.post_id, c.user_id, c.parent_id, c.content, c.created_at,
 		       u.nickname, u.avatar_url,
 		       COALESCE(like_counts.like_count, 0) as like_count,
 		       COALESCE(like_counts.dislike_count, 0) as dislike_count
 		FROM comments c
 		JOIN users u ON c.user_id = u.id
 		LEFT JOIN (
-			SELECT comment_id, 
+			SELECT comment_id,
 			       SUM(CASE WHEN is_like = 1 THEN 1 ELSE 0 END) as like_count,
 			       SUM(CASE WHEN is_like = 0 THEN 1 ELSE 0 END) as dislike_count
-			FROM likes 
-			WHERE comment_id IS NOT NULL 
+			FROM likes
+			WHERE comment_id IS NOT NULL
 			GROUP BY comment_id
 		) like_counts ON c.id = like_counts.comment_id
 		WHERE c.id = ?
 	`, commentID).Scan(
-		&comment.ID, &comment.PostID, &comment.UserID, &comment.ParentID, &comment.Content, &comment.CreatedAt, &comment.UpdatedAt,
+		&comment.ID, &comment.PostID, &comment.UserID, &comment.ParentID, &comment.Content, &comment.CreatedAt,
 		&comment.Author, &comment.AuthorAvatar,
 		&comment.LikeCount, &comment.DislikeCount,
 	)
