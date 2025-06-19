@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -137,25 +138,35 @@ func getFriendsHandler(w http.ResponseWriter, r *http.Request) {
 
 // sendFriendRequestHandler sends a friend request
 func sendFriendRequestHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("👥 Friend request received")
+
 	user := auth.GetUserFromSession(r)
 	if user == nil {
+		log.Printf("❌ Friend request failed - Authentication required")
 		RenderError(w, "Authentication required", http.StatusUnauthorized)
 		return
 	}
 
+	log.Printf("✅ User authenticated: %s (%s)", user.Nickname, user.ID)
+
 	var req models.FriendRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("❌ Friend request failed - Invalid request body: %v", err)
 		RenderError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
+	log.Printf("📋 Friend request data - From: %s, To: %s", user.ID, req.AddresseeID)
+
 	// Validate input
 	if req.AddresseeID == "" {
+		log.Printf("❌ Friend request failed - Missing addressee ID")
 		RenderError(w, "Addressee ID is required", http.StatusBadRequest)
 		return
 	}
 
 	if req.AddresseeID == user.ID {
+		log.Printf("❌ Friend request failed - Cannot send to self")
 		RenderError(w, "Cannot send friend request to yourself", http.StatusBadRequest)
 		return
 	}
@@ -163,21 +174,28 @@ func sendFriendRequestHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if addressee exists
 	addressee, err := auth.GetUserByID(req.AddresseeID)
 	if err != nil || addressee == nil {
+		log.Printf("❌ Friend request failed - User not found: %s", req.AddresseeID)
 		RenderError(w, "User not found", http.StatusNotFound)
 		return
 	}
 
+	log.Printf("✅ Addressee found: %s (%s)", addressee.Nickname, addressee.ID)
+
 	// Check if friendship already exists
 	exists, err := friendshipExists(user.ID, req.AddresseeID)
 	if err != nil {
+		log.Printf("❌ Friend request failed - Error checking existing friendship: %v", err)
 		RenderError(w, "Failed to check existing friendship", http.StatusInternalServerError)
 		return
 	}
 
 	if exists {
+		log.Printf("❌ Friend request failed - Friendship already exists")
 		RenderError(w, "Friendship already exists or request already sent", http.StatusConflict)
 		return
 	}
+
+	log.Printf("🔄 Creating friend request in database...")
 
 	// Create friend request
 	_, err = database.DB.Exec(`
@@ -186,10 +204,12 @@ func sendFriendRequestHandler(w http.ResponseWriter, r *http.Request) {
 	`, user.ID, req.AddresseeID, time.Now(), time.Now())
 
 	if err != nil {
+		log.Printf("❌ Friend request failed - Database error: %v", err)
 		RenderError(w, "Failed to send friend request", http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("🎉 Friend request sent successfully from %s to %s", user.Nickname, addressee.Nickname)
 	RenderSuccess(w, "Friend request sent successfully", nil)
 }
 

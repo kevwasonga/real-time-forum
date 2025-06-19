@@ -677,23 +677,48 @@ window.FriendsPage = {
     async handleAddFriend(event) {
         const userID = event.target.dataset.userId;
         const button = event.target;
-        
+
+        if (!userID) {
+            console.error('No user ID found on button');
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error('Invalid user selection');
+            }
+            return;
+        }
+
         try {
             window.utils.setLoading(button, true, 'Sending...');
-            
-            await window.api.sendFriendRequest(userID);
-            
-            if (window.forumApp.notificationComponent) {
-                window.forumApp.notificationComponent.success('Friend request sent');
+
+            const response = await window.api.sendFriendRequest(userID);
+
+            if (response.success) {
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.success('Friend request sent successfully');
+                }
+
+                // Update button state
+                button.textContent = 'Request Sent';
+                button.disabled = true;
+                button.classList.remove('btn-primary');
+                button.classList.add('btn-outline');
+
+                // Optionally remove the user card after a delay
+                setTimeout(() => {
+                    const userCard = button.closest('.search-result-item, .browse-user-card, .suggested-friend-card');
+                    if (userCard) {
+                        userCard.style.opacity = '0';
+                        userCard.style.transform = 'translateX(100px)';
+                        setTimeout(() => {
+                            userCard.remove();
+                        }, 300);
+                    }
+                }, 1000);
             }
-            
-            // Remove from search results
-            button.closest('.search-result-item').remove();
-            
+
         } catch (error) {
             console.error('Failed to send friend request:', error);
             if (window.forumApp.notificationComponent) {
-                window.forumApp.notificationComponent.error('Failed to send friend request');
+                window.forumApp.notificationComponent.error(error.message || 'Failed to send friend request');
             }
         } finally {
             window.utils.setLoading(button, false);
