@@ -343,55 +343,459 @@ window.ProfilePage = {
         `;
 
         this.bindEvents();
-        await this.loadProfileStats();
+        await this.loadProfileData();
+    },
+
+    handleTabSwitch(event) {
+        const clickedTab = event.target.closest('.tab-btn');
+        const tabName = clickedTab.dataset.tab;
+        this.switchToTab(tabName);
+    },
+
+    switchToTab(tabName) {
+        // Update tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+        // Update tab content
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(`${tabName}-tab`).classList.add('active');
+
+        // Load tab-specific data
+        this.loadTabData(tabName);
+    },
+
+    async loadTabData(tabName) {
+        switch (tabName) {
+            case 'overview':
+                await this.loadOverviewData();
+                break;
+            case 'activity':
+                await this.loadActivityData();
+                break;
+            case 'posts':
+                await this.loadUserPosts();
+                break;
+            case 'achievements':
+                await this.loadAchievements();
+                break;
+            case 'settings':
+                // Settings tab is already loaded
+                break;
+        }
+    },
+
+    async loadProfileData() {
+        // Load all initial data
+        await Promise.all([
+            this.loadProfileStats(),
+            this.loadOverviewData()
+        ]);
+    },
+
+    async loadOverviewData() {
+        await Promise.all([
+            this.loadDetailedStats(),
+            this.loadRecentAchievements(),
+            this.loadRecentActivity()
+        ]);
+    },
+
+    async loadDetailedStats() {
+        const container = document.getElementById('detailed-stats');
+        if (!container) return;
+
+        try {
+            // For now, we'll use mock data. In a real app, this would be an API call
+            const stats = {
+                postsCount: 12,
+                commentsCount: 45,
+                likesReceived: 89,
+                friendsCount: 23,
+                joinDate: this.currentUser.createdAt,
+                lastActive: new Date().toISOString()
+            };
+
+            container.innerHTML = `
+                <div class="stat-row">
+                    <div class="stat-item">
+                        <span class="stat-icon">📝</span>
+                        <div class="stat-info">
+                            <span class="stat-value">${stats.postsCount}</span>
+                            <span class="stat-label">Posts Created</span>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">💬</span>
+                        <div class="stat-info">
+                            <span class="stat-value">${stats.commentsCount}</span>
+                            <span class="stat-label">Comments Made</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-item">
+                        <span class="stat-icon">👍</span>
+                        <div class="stat-info">
+                            <span class="stat-value">${stats.likesReceived}</span>
+                            <span class="stat-label">Likes Received</span>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">👥</span>
+                        <div class="stat-info">
+                            <span class="stat-value">${stats.friendsCount}</span>
+                            <span class="stat-label">Friends</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-item">
+                        <span class="stat-icon">📅</span>
+                        <div class="stat-info">
+                            <span class="stat-value">${window.utils.formatDate(stats.joinDate)}</span>
+                            <span class="stat-label">Member Since</span>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">🕒</span>
+                        <div class="stat-info">
+                            <span class="stat-value">${window.utils.formatDate(stats.lastActive)}</span>
+                            <span class="stat-label">Last Active</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Update quick stats in hero section
+            document.querySelector('#posts-count .stat-number').textContent = stats.postsCount;
+            document.querySelector('#comments-count .stat-number').textContent = stats.commentsCount;
+            document.querySelector('#likes-count .stat-number').textContent = stats.likesReceived;
+            document.querySelector('#friends-count .stat-number').textContent = stats.friendsCount;
+
+        } catch (error) {
+            console.error('Failed to load detailed stats:', error);
+            container.innerHTML = '<div class="error-message">Failed to load statistics</div>';
+        }
+    },
+
+    async loadRecentAchievements() {
+        const container = document.getElementById('achievements-preview');
+        if (!container) return;
+
+        try {
+            // Mock achievements data
+            const achievements = [
+                { id: 1, name: 'First Post', description: 'Created your first post', icon: '🎉', earned: true },
+                { id: 2, name: 'Social Butterfly', description: 'Made 10 friends', icon: '🦋', earned: true },
+                { id: 3, name: 'Conversation Starter', description: 'Received 50 likes', icon: '💬', earned: false }
+            ];
+
+            container.innerHTML = achievements.map(achievement => `
+                <div class="achievement-item ${achievement.earned ? 'earned' : 'locked'}">
+                    <span class="achievement-icon">${achievement.icon}</span>
+                    <div class="achievement-info">
+                        <h4 class="achievement-name">${achievement.name}</h4>
+                        <p class="achievement-desc">${achievement.description}</p>
+                    </div>
+                    ${achievement.earned ? '<span class="achievement-badge">✓</span>' : '<span class="achievement-lock">🔒</span>'}
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error('Failed to load achievements:', error);
+            container.innerHTML = '<div class="error-message">Failed to load achievements</div>';
+        }
+    },
+
+    async loadRecentActivity() {
+        const container = document.getElementById('activity-preview');
+        if (!container) return;
+
+        try {
+            // Mock activity data
+            const activities = [
+                { type: 'post', action: 'Created a new post', title: 'My thoughts on technology', time: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+                { type: 'comment', action: 'Commented on', title: 'Discussion about AI', time: new Date(Date.now() - 5 * 60 * 60 * 1000) },
+                { type: 'like', action: 'Liked a post', title: 'Best programming practices', time: new Date(Date.now() - 8 * 60 * 60 * 1000) }
+            ];
+
+            container.innerHTML = activities.map(activity => `
+                <div class="activity-item">
+                    <div class="activity-icon ${activity.type}">
+                        ${activity.type === 'post' ? '📝' : activity.type === 'comment' ? '💬' : '👍'}
+                    </div>
+                    <div class="activity-content">
+                        <p class="activity-text">
+                            ${activity.action} <strong>${activity.title}</strong>
+                        </p>
+                        <span class="activity-time">${window.utils.formatDate(activity.time)}</span>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error('Failed to load recent activity:', error);
+            container.innerHTML = '<div class="error-message">Failed to load activity</div>';
+        }
     },
 
     bindEvents() {
+        // Tab switching
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', this.handleTabSwitch.bind(this));
+        });
+
+        // Profile form
         const profileForm = document.getElementById('profile-form');
         if (profileForm) {
             profileForm.addEventListener('submit', this.handleProfileUpdate.bind(this));
         }
 
+        // Change password button
         const changePasswordBtn = document.getElementById('change-password-btn');
         if (changePasswordBtn) {
             changePasswordBtn.addEventListener('click', this.showChangePasswordModal.bind(this));
         }
+
+        // Delete account button
+        const deleteAccountBtn = document.getElementById('delete-account-btn');
+        if (deleteAccountBtn) {
+            deleteAccountBtn.addEventListener('click', this.showDeleteAccountModal.bind(this));
+        }
+
+        // Edit profile button
+        const editProfileBtn = document.querySelector('.edit-profile-btn');
+        if (editProfileBtn) {
+            editProfileBtn.addEventListener('click', () => {
+                this.switchToTab('settings');
+            });
+        }
+
+        // Activity filters
+        const activityFilters = document.querySelectorAll('.filter-btn');
+        activityFilters.forEach(btn => {
+            btn.addEventListener('click', this.handleActivityFilter.bind(this));
+        });
+
+        // Posts sort
+        const postsSort = document.getElementById('posts-sort');
+        if (postsSort) {
+            postsSort.addEventListener('change', this.handlePostsSort.bind(this));
+        }
+
+        // Bio character counter
+        const bioTextarea = document.getElementById('bio');
+        if (bioTextarea) {
+            bioTextarea.addEventListener('input', this.updateBioCounter.bind(this));
+            this.updateBioCounter({ target: bioTextarea });
+        }
+    },
+
+    async loadActivityData(filter = 'all') {
+        const container = document.getElementById('activity-timeline');
+        if (!container) return;
+
+        try {
+            container.innerHTML = '<div class="loading-placeholder">Loading activity...</div>';
+
+            // Mock activity data - in a real app, this would be an API call
+            const allActivities = [
+                { type: 'post', action: 'Created a new post', title: 'My thoughts on technology', time: new Date(Date.now() - 2 * 60 * 60 * 1000), id: 1 },
+                { type: 'comment', action: 'Commented on', title: 'Discussion about AI', time: new Date(Date.now() - 5 * 60 * 60 * 1000), id: 2 },
+                { type: 'like', action: 'Liked a post', title: 'Best programming practices', time: new Date(Date.now() - 8 * 60 * 60 * 1000), id: 3 },
+                { type: 'post', action: 'Created a new post', title: 'Learning JavaScript', time: new Date(Date.now() - 24 * 60 * 60 * 1000), id: 4 },
+                { type: 'comment', action: 'Commented on', title: 'React vs Vue', time: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), id: 5 }
+            ];
+
+            const filteredActivities = filter === 'all' ? allActivities : allActivities.filter(a => a.type === filter);
+
+            if (filteredActivities.length === 0) {
+                container.innerHTML = '<div class="no-activity">No activity found for this filter</div>';
+                return;
+            }
+
+            container.innerHTML = filteredActivities.map(activity => `
+                <div class="activity-item-full">
+                    <div class="activity-timeline-dot ${activity.type}"></div>
+                    <div class="activity-card">
+                        <div class="activity-header">
+                            <div class="activity-icon ${activity.type}">
+                                ${activity.type === 'post' ? '📝' : activity.type === 'comment' ? '💬' : '👍'}
+                            </div>
+                            <div class="activity-meta">
+                                <p class="activity-text">
+                                    ${activity.action} <strong>${activity.title}</strong>
+                                </p>
+                                <span class="activity-time">${window.utils.formatDate(activity.time)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error('Failed to load activity data:', error);
+            container.innerHTML = '<div class="error-message">Failed to load activity</div>';
+        }
+    },
+
+    async loadUserPosts(sort = 'newest') {
+        const container = document.getElementById('user-posts');
+        if (!container) return;
+
+        try {
+            container.innerHTML = '<div class="loading-placeholder">Loading posts...</div>';
+
+            // In a real app, this would be an API call to get user's posts
+            const response = await window.api.getPosts({ userId: this.currentUser.id, sort });
+
+            if (response.success && response.data.length > 0) {
+                container.innerHTML = response.data.map(post => `
+                    <div class="user-post-card">
+                        <div class="post-header">
+                            <h4><a href="/post/${post.id}" data-route="/post/${post.id}">${window.utils.escapeHtml(post.title)}</a></h4>
+                            <span class="post-date">${window.utils.formatDate(post.createdAt)}</span>
+                        </div>
+                        <div class="post-excerpt">
+                            ${window.utils.escapeHtml(post.content.substring(0, 150))}${post.content.length > 150 ? '...' : ''}
+                        </div>
+                        <div class="post-categories">
+                            ${post.categories.map(cat => `<span class="category-tag">${window.utils.escapeHtml(cat)}</span>`).join('')}
+                        </div>
+                        <div class="post-stats">
+                            <span class="stat">👍 ${post.likeCount}</span>
+                            <span class="stat">💬 ${post.commentCount}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<div class="no-posts">You haven\'t created any posts yet. <a href="/create-post" data-route="/create-post">Create your first post!</a></div>';
+            }
+
+        } catch (error) {
+            console.error('Failed to load user posts:', error);
+            container.innerHTML = '<div class="error-message">Failed to load posts</div>';
+        }
+    },
+
+    async loadAchievements() {
+        const container = document.getElementById('achievements-grid');
+        if (!container) return;
+
+        try {
+            container.innerHTML = '<div class="loading-placeholder">Loading achievements...</div>';
+
+            // Mock achievements data
+            const achievements = [
+                { id: 1, name: 'First Post', description: 'Created your first post', icon: '🎉', earned: true, earnedDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+                { id: 2, name: 'Social Butterfly', description: 'Made 10 friends', icon: '🦋', earned: true, earnedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
+                { id: 3, name: 'Conversation Starter', description: 'Received 50 likes', icon: '💬', earned: false },
+                { id: 4, name: 'Prolific Writer', description: 'Created 25 posts', icon: '✍️', earned: false },
+                { id: 5, name: 'Community Helper', description: 'Made 100 helpful comments', icon: '🤝', earned: false },
+                { id: 6, name: 'Popular Creator', description: 'Received 200 likes', icon: '⭐', earned: false }
+            ];
+
+            container.innerHTML = achievements.map(achievement => `
+                <div class="achievement-card ${achievement.earned ? 'earned' : 'locked'}">
+                    <div class="achievement-icon-large">${achievement.icon}</div>
+                    <h4 class="achievement-name">${achievement.name}</h4>
+                    <p class="achievement-description">${achievement.description}</p>
+                    <div class="achievement-status">
+                        ${achievement.earned
+                            ? `<span class="earned-badge">✓ Earned ${window.utils.formatDate(achievement.earnedDate)}</span>`
+                            : '<span class="locked-badge">🔒 Not earned yet</span>'
+                        }
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error('Failed to load achievements:', error);
+            container.innerHTML = '<div class="error-message">Failed to load achievements</div>';
+        }
+    },
+
+    handleActivityFilter(event) {
+        const filterBtn = event.target;
+        const filter = filterBtn.dataset.filter;
+
+        // Update active filter button
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+        filterBtn.classList.add('active');
+
+        // Load filtered activity
+        this.loadActivityData(filter);
+    },
+
+    handlePostsSort(event) {
+        const sort = event.target.value;
+        this.loadUserPosts(sort);
+    },
+
+    updateBioCounter(event) {
+        const textarea = event.target;
+        const maxLength = textarea.maxLength;
+        const currentLength = textarea.value.length;
+
+        let counter = textarea.parentNode.querySelector('.bio-counter');
+        if (!counter) {
+            counter = document.createElement('small');
+            counter.className = 'bio-counter form-help';
+            textarea.parentNode.appendChild(counter);
+        }
+
+        counter.textContent = `${currentLength}/${maxLength} characters`;
+        counter.style.color = currentLength > maxLength * 0.9 ? 'var(--warning-color)' : 'var(--text-muted)';
     },
 
     async handleProfileUpdate(event) {
         event.preventDefault();
-        
+
         const form = event.target;
         const formData = new FormData(form);
-        
+
         const profileData = {
             firstName: formData.get('firstName').trim(),
             lastName: formData.get('lastName').trim(),
             age: parseInt(formData.get('age')),
-            gender: formData.get('gender')
+            gender: formData.get('gender'),
+            bio: formData.get('bio').trim(),
+            showEmail: formData.get('showEmail') === 'on',
+            allowMessages: formData.get('allowMessages') === 'on',
+            showOnlineStatus: formData.get('showOnlineStatus') === 'on'
         };
-        
+
         const submitBtn = form.querySelector('button[type="submit"]');
 
         try {
             window.utils.setLoading(submitBtn, true, 'Updating...');
-            
+
             const response = await window.api.updateProfile(profileData);
-            
+
             if (response.success) {
                 // Update local user data
                 const updatedUser = response.data;
                 window.auth.currentUser = updatedUser;
                 window.forumApp.currentUser = updatedUser;
-                
+                this.currentUser = updatedUser;
+
                 // Update header UI
                 if (window.forumApp.headerComponent) {
                     window.forumApp.headerComponent.updateUserInfo(updatedUser);
                 }
-                
+
                 if (window.forumApp.notificationComponent) {
                     window.forumApp.notificationComponent.success('Profile updated successfully');
                 }
+
+                // Refresh profile display
+                await this.loadProfileData();
             }
 
         } catch (error) {
@@ -511,5 +915,90 @@ window.ProfilePage = {
 
         // Focus first input
         modal.querySelector('#current-password').focus();
+    },
+
+    showDeleteAccountModal() {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content danger-modal">
+                <div class="modal-header">
+                    <h3>⚠️ Delete Account</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="warning-message">
+                        <p><strong>This action cannot be undone!</strong></p>
+                        <p>Deleting your account will permanently remove:</p>
+                        <ul>
+                            <li>Your profile and personal information</li>
+                            <li>All your posts and comments</li>
+                            <li>Your friend connections</li>
+                            <li>Your message history</li>
+                            <li>All your achievements and activity</li>
+                        </ul>
+                    </div>
+
+                    <form id="delete-account-form" class="modal-form">
+                        <div class="form-group">
+                            <label for="delete-password">Enter your password to confirm:</label>
+                            <input type="password" id="delete-password" name="password" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="delete-confirmation">Type "DELETE" to confirm:</label>
+                            <input type="text" id="delete-confirmation" name="confirmation" required placeholder="DELETE">
+                        </div>
+
+                        <div class="modal-actions">
+                            <button type="button" class="btn btn-outline modal-cancel">Cancel</button>
+                            <button type="submit" class="btn btn-danger">Delete My Account</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Bind modal events
+        const closeBtn = modal.querySelector('.modal-close');
+        const cancelBtn = modal.querySelector('.modal-cancel');
+        const form = modal.querySelector('#delete-account-form');
+
+        const closeModal = () => {
+            document.body.removeChild(modal);
+        };
+
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+            const confirmation = formData.get('confirmation');
+
+            if (confirmation !== 'DELETE') {
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.error('Please type "DELETE" to confirm');
+                }
+                return;
+            }
+
+            // Here you would typically call an API to delete the account
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.info('Account deletion functionality not implemented yet');
+            }
+
+            closeModal();
+        });
+
+        // Focus first input
+        modal.querySelector('#delete-password').focus();
     }
 };
