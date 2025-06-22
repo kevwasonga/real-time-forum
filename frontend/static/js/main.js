@@ -376,18 +376,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.forumApp.init();
 });
 
-// Global debug function for testing
-window.debugOnlineUsers = function() {
-    console.log('=== GLOBAL DEBUG ===');
-    if (window.forumApp && window.forumApp.sidebarComponent) {
-        window.forumApp.sidebarComponent.debugSidebar();
-    } else {
-        console.error('Sidebar component not available');
-        console.log('ForumApp:', window.forumApp);
-        console.log('SidebarComponent:', window.SidebarComponent);
-    }
-};
-
 // Handle page visibility changes
 document.addEventListener('visibilitychange', () => {
     if (window.forumApp.websocket) {

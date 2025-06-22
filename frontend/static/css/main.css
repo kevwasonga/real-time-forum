@@ -385,21 +385,7 @@ body {
     border-radius: 50%;
 }
 
-/* Test buttons for debugging */
-.test-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-    margin-top: var(--spacing-md);
-    padding: var(--spacing-sm);
-    border-top: 1px solid var(--border-color);
-}
-
-.test-buttons .btn {
-    font-size: 0.8rem;
-    padding: var(--spacing-xs) var(--spacing-sm);
-}
-
+/* No online users message */
 .no-online-users {
     text-align: center;
     color: var(--text-muted);
@@ -407,7 +393,7 @@ body {
 }
 
 .no-online-users p {
-    margin-bottom: var(--spacing-md);
+    margin: 0;
     font-style: italic;
 }
 
