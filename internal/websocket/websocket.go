@@ -244,11 +244,20 @@ func (h *Hub) debugOnlineUsersTable() {
 
 // broadcastUserStatus broadcasts user online/offline status
 func (h *Hub) broadcastUserStatus(userID, status string) {
+	// Get user nickname from database
+	var nickname string
+	err := database.DB.QueryRow("SELECT nickname FROM users WHERE id = ?", userID).Scan(&nickname)
+	if err != nil {
+		log.Printf("Error getting user nickname for broadcast: %v", err)
+		nickname = "Unknown User"
+	}
+
 	message := models.WebSocketMessage{
 		Type: "user_status",
 		Data: models.UserStatusData{
-			UserID: userID,
-			Status: status,
+			UserID:   userID,
+			Nickname: nickname,
+			Status:   status,
 		},
 		Timestamp: time.Now(),
 	}
