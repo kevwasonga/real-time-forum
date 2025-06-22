@@ -9,11 +9,24 @@ window.HeaderComponent = {
         // User avatar dropdown toggle
         const userAvatarBtn = document.getElementById('user-avatar-btn');
         const userDropdown = document.getElementById('user-dropdown');
-        
+
         if (userAvatarBtn && userDropdown) {
+            console.log('Setting up dropdown events for:', userAvatarBtn, userDropdown);
+
             userAvatarBtn.addEventListener('click', (e) => {
+                e.preventDefault();
                 e.stopPropagation();
+
+                // Close any other open dropdowns first
+                document.querySelectorAll('.user-dropdown.show').forEach(dropdown => {
+                    if (dropdown !== userDropdown) {
+                        dropdown.classList.remove('show');
+                    }
+                });
+
                 userDropdown.classList.toggle('show');
+                console.log('Dropdown toggled, show class:', userDropdown.classList.contains('show'));
+                console.log('Dropdown computed style:', window.getComputedStyle(userDropdown).display);
             });
 
             // Close dropdown when clicking outside
@@ -22,6 +35,8 @@ window.HeaderComponent = {
                     userDropdown.classList.remove('show');
                 }
             });
+        } else {
+            console.log('Could not find dropdown elements:', { userAvatarBtn, userDropdown });
         }
 
         // Logout button
