@@ -63,7 +63,18 @@ window.SidebarComponent = {
             const response = await window.api.getOnlineUsers();
             console.log('👥 API response:', response);
             if (response.success) {
-                this.onlineUsers = response.data || [];
+                let users = response.data || [];
+
+                // Filter out current user
+                const currentUserId = window.forumApp.currentUser?.id;
+                console.log('👥 Current user ID:', currentUserId);
+                console.log('👥 Raw users from API:', users);
+                if (currentUserId) {
+                    users = users.filter(user => user.userId !== currentUserId);
+                    console.log('👥 Filtered out current user, remaining users:', users.length);
+                }
+
+                this.onlineUsers = users;
                 console.log('👥 Online users updated:', this.onlineUsers);
                 this.render();
             } else {
@@ -75,25 +86,31 @@ window.SidebarComponent = {
     },
 
     updateUserStatus(statusData) {
-        const { userID, nickname, status } = statusData;
-        
+        const { userId, nickname, status } = statusData;
+
+        // Don't add/remove current user
+        const currentUserId = window.forumApp.currentUser?.id;
+        if (userId === currentUserId) {
+            return;
+        }
+
         if (status === 'online') {
             // Add user if not already in list
-            if (!this.onlineUsers.find(user => user.userID === userID)) {
+            if (!this.onlineUsers.find(user => user.userId === userId)) {
                 this.onlineUsers.push({
-                    userID,
+                    userId,
                     nickname,
                     firstName: '',
                     lastName: '',
-                    avatarURL: null,
+                    avatarUrl: null,
                     lastSeen: new Date().toISOString()
                 });
             }
         } else if (status === 'offline') {
             // Remove user from list
-            this.onlineUsers = this.onlineUsers.filter(user => user.userID !== userID);
+            this.onlineUsers = this.onlineUsers.filter(user => user.userId !== userId);
         }
-        
+
         this.render();
     },
 
@@ -129,6 +146,7 @@ window.SidebarComponent = {
         }
 
         sortedUsers.forEach(user => {
+            console.log('👥 Creating element for user:', user);
             const userElement = this.createUserElement(user);
             onlineUsersContainer.appendChild(userElement);
         });
@@ -137,11 +155,13 @@ window.SidebarComponent = {
     createUserElement(user) {
         const userDiv = document.createElement('div');
         userDiv.className = 'online-user';
-        userDiv.setAttribute('data-user-id', user.userID);
-        
-        const avatarUrl = user.avatarURL || '/static/images/default-avatar.png';
-        const displayName = user.nickname;
-        
+        userDiv.setAttribute('data-user-id', user.userId);
+
+        const avatarUrl = user.avatarUrl || '/static/images/default-avatar.svg';
+        const displayName = user.nickname || `${user.firstName} ${user.lastName}`.trim() || 'Unknown User';
+
+        console.log('👥 Creating user element for:', { userId: user.userId, nickname: user.nickname, displayName });
+
         userDiv.innerHTML = `
             <img src="${avatarUrl}" alt="${displayName}'s avatar" class="online-user-avatar">
             <span class="online-user-name">${window.utils.escapeHtml(displayName)}</span>
@@ -157,15 +177,17 @@ window.SidebarComponent = {
     },
 
     startConversation(user) {
-        // Don't start conversation with self
-        if (window.forumApp.currentUser && user.userID === window.forumApp.currentUser.id) {
+        // Don't start conversation with self (this should already be filtered out, but double-check)
+        if (window.forumApp.currentUser && user.userId === window.forumApp.currentUser.id) {
             return;
         }
+
+        console.log('👥 Starting conversation with user:', user);
 
         // Navigate to messages page with this user
         if (window.forumApp.router) {
             window.forumApp.router.navigate('/messages');
-            
+
             // Set the selected user for messaging
             setTimeout(() => {
                 if (window.forumApp.messagesComponent) {
