@@ -276,11 +276,16 @@ func OnlineUsersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("👥 OnlineUsersHandler: Fetching online users for user %s", user.Nickname)
+
 	onlineUsers, err := getOnlineUsers()
 	if err != nil {
+		log.Printf("❌ OnlineUsersHandler: Error fetching online users: %v", err)
 		RenderError(w, "Failed to fetch online users", http.StatusInternalServerError)
 		return
 	}
+
+	log.Printf("👥 OnlineUsersHandler: Found %d online users: %+v", len(onlineUsers), onlineUsers)
 
 	RenderSuccess(w, "Online users retrieved successfully", onlineUsers)
 }
@@ -380,8 +385,9 @@ func friendshipExists(userID1, userID2 string) (bool, error) {
 
 // getOnlineUsers gets all currently online users
 func getOnlineUsers() ([]models.OnlineUser, error) {
-	// This would typically integrate with the WebSocket hub
-	// For now, return users who have been active recently
+	log.Printf("👥 getOnlineUsers: Querying database for online users...")
+
+	// Get users from the database who have been active recently
 	rows, err := database.DB.Query(`
 		SELECT ou.user_id, u.nickname, u.first_name, u.last_name, u.avatar_url, ou.last_seen
 		FROM online_users ou
@@ -391,6 +397,7 @@ func getOnlineUsers() ([]models.OnlineUser, error) {
 	`)
 
 	if err != nil {
+		log.Printf("❌ getOnlineUsers: Database query error: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -402,10 +409,13 @@ func getOnlineUsers() ([]models.OnlineUser, error) {
 			&user.UserID, &user.Nickname, &user.FirstName, &user.LastName, &user.AvatarURL, &user.LastSeen,
 		)
 		if err != nil {
+			log.Printf("❌ getOnlineUsers: Row scan error: %v", err)
 			return nil, err
 		}
 		onlineUsers = append(onlineUsers, user)
+		log.Printf("👥 getOnlineUsers: Found user %s (ID: %s)", user.Nickname, user.UserID)
 	}
 
+	log.Printf("👥 getOnlineUsers: Total users found: %d", len(onlineUsers))
 	return onlineUsers, nil
 }
