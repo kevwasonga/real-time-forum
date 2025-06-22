@@ -68,7 +68,7 @@ window.HeaderComponent = {
             if (user.avatarUrl) {
                 userAvatar.src = user.avatarUrl;
             } else {
-                userAvatar.src = '/static/images/default-avatar.png';
+                userAvatar.src = '/static/images/default-avatar.svg';
             }
             userAvatar.alt = `${user.nickname}'s avatar`;
         }
