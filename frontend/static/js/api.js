@@ -155,6 +155,18 @@ window.api = {
         return this.put('/profile', profileData);
     },
 
+    async uploadAvatar(formData) {
+        return this.request('/upload/avatar', {
+            method: 'POST',
+            body: formData,
+            headers: {} // Remove Content-Type header to let browser set it for FormData
+        });
+    },
+
+    async updateAvatar(avatarData) {
+        return this.put('/profile/avatar', avatarData);
+    },
+
     // Friends endpoints
     async getFriends() {
         return this.get('/friends');
