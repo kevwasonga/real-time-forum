@@ -56,9 +56,9 @@ type Hub struct {
 // NewHub creates a new Hub
 func NewHub() *Hub {
 	return &Hub{
-		broadcast:   make(chan []byte),
-		register:    make(chan *Client),
-		unregister:  make(chan *Client),
+		broadcast:   make(chan []byte, 256),
+		register:    make(chan *Client, 256),
+		unregister:  make(chan *Client, 256),
 		clients:     make(map[*Client]bool),
 		userClients: make(map[string]*Client),
 	}
@@ -70,11 +70,24 @@ func (h *Hub) Run() {
 		select {
 		case client := <-h.register:
 			h.mutex.Lock()
+
+			// Check if user already has a connection
+			if existingClient, exists := h.userClients[client.UserID]; exists {
+				log.Printf("⚠️ User %s already has a connection (Client: %s), replacing with new connection (Client: %s)",
+					client.UserID, existingClient.ID, client.ID)
+				// Close existing connection
+				close(existingClient.Send)
+				delete(h.clients, existingClient)
+			}
+
 			h.clients[client] = true
 			h.userClients[client.UserID] = client
+			totalClients := len(h.clients)
+			totalUsers := len(h.userClients)
 			h.mutex.Unlock()
 
-			log.Printf("Client %s (User: %s) connected", client.ID, client.UserID)
+			log.Printf("✅ Client %s (User: %s) connected. Total clients: %d, Total unique users: %d",
+				client.ID, client.UserID, totalClients, totalUsers)
 
 			// Update database with user online status
 			h.updateUserOnlineStatus(client.UserID, true)
@@ -89,9 +102,12 @@ func (h *Hub) Run() {
 				delete(h.userClients, client.UserID)
 				close(client.Send)
 			}
+			totalClients := len(h.clients)
+			totalUsers := len(h.userClients)
 			h.mutex.Unlock()
 
-			log.Printf("Client %s (User: %s) disconnected", client.ID, client.UserID)
+			log.Printf("❌ Client %s (User: %s) disconnected. Total clients: %d, Total unique users: %d",
+				client.ID, client.UserID, totalClients, totalUsers)
 
 			// Update database with user offline status
 			h.updateUserOnlineStatus(client.UserID, false)
@@ -162,27 +178,67 @@ func (h *Hub) IsUserOnline(userID string) bool {
 
 // updateUserOnlineStatus updates the user's online status in the database
 func (h *Hub) updateUserOnlineStatus(userID string, isOnline bool) {
+	log.Printf("👥 updateUserOnlineStatus: User %s, isOnline: %v", userID, isOnline)
+
 	if isOnline {
 		// Insert or update user as online
-		_, err := database.DB.Exec(`
+		result, err := database.DB.Exec(`
 			INSERT OR REPLACE INTO online_users (user_id, last_seen)
 			VALUES (?, CURRENT_TIMESTAMP)
 		`, userID)
 		if err != nil {
-			log.Printf("Error updating user online status: %v", err)
+			log.Printf("❌ Error updating user online status: %v", err)
 		} else {
-			log.Printf("User %s marked as online in database", userID)
+			rowsAffected, _ := result.RowsAffected()
+			log.Printf("✅ User %s marked as online in database (rows affected: %d)", userID, rowsAffected)
+
+			// Debug: Check current online users in database
+			h.debugOnlineUsersTable()
 		}
 	} else {
 		// Remove user from online users table
-		_, err := database.DB.Exec(`
+		result, err := database.DB.Exec(`
 			DELETE FROM online_users WHERE user_id = ?
 		`, userID)
 		if err != nil {
-			log.Printf("Error removing user from online status: %v", err)
+			log.Printf("❌ Error removing user from online status: %v", err)
 		} else {
-			log.Printf("User %s removed from online users in database", userID)
+			rowsAffected, _ := result.RowsAffected()
+			log.Printf("✅ User %s removed from online users in database (rows affected: %d)", userID, rowsAffected)
+
+			// Debug: Check current online users in database
+			h.debugOnlineUsersTable()
 		}
+	}
+}
+
+// debugOnlineUsersTable prints current online users in database for debugging
+func (h *Hub) debugOnlineUsersTable() {
+	rows, err := database.DB.Query(`
+		SELECT ou.user_id, u.nickname, ou.last_seen
+		FROM online_users ou
+		JOIN users u ON ou.user_id = u.id
+		ORDER BY ou.last_seen DESC
+	`)
+	if err != nil {
+		log.Printf("❌ Debug query error: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	log.Printf("🔍 Current online_users table contents:")
+	count := 0
+	for rows.Next() {
+		var userID, nickname, lastSeen string
+		if err := rows.Scan(&userID, &nickname, &lastSeen); err != nil {
+			log.Printf("❌ Debug scan error: %v", err)
+			continue
+		}
+		count++
+		log.Printf("   %d. User: %s (ID: %s) - Last seen: %s", count, nickname, userID, lastSeen)
+	}
+	if count == 0 {
+		log.Printf("   (No users in online_users table)")
 	}
 }
 
@@ -218,14 +274,17 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Get user from session
 	user := auth.GetUserFromSession(r)
 	if user == nil {
+		log.Printf("❌ WebSocket: No user in session")
 		http.Error(w, "Authentication required", http.StatusUnauthorized)
 		return
 	}
 
+	log.Printf("🔌 WebSocket: User %s (%s) connecting", user.Nickname, user.ID)
+
 	// Upgrade connection to WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		log.Printf("❌ WebSocket upgrade error: %v", err)
 		return
 	}
 
