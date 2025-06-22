@@ -259,8 +259,8 @@ window.forumApp = {
             
             // Update user info
             if (userNickname) userNickname.textContent = this.currentUser.nickname;
-            if (userAvatar && this.currentUser.avatarUrl) {
-                userAvatar.src = this.currentUser.avatarUrl;
+            if (userAvatar) {
+                userAvatar.src = this.currentUser.avatarUrl || '/static/images/default-avatar.svg';
             }
             
         } else {
