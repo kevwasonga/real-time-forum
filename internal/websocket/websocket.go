@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"forum/internal/auth"
+	"forum/internal/database"
 	"forum/internal/models"
 
 	"github.com/gorilla/websocket"
@@ -72,9 +73,12 @@ func (h *Hub) Run() {
 			h.clients[client] = true
 			h.userClients[client.UserID] = client
 			h.mutex.Unlock()
-			
+
 			log.Printf("Client %s (User: %s) connected", client.ID, client.UserID)
-			
+
+			// Update database with user online status
+			h.updateUserOnlineStatus(client.UserID, true)
+
 			// Broadcast user online status
 			h.broadcastUserStatus(client.UserID, "online")
 
@@ -86,9 +90,12 @@ func (h *Hub) Run() {
 				close(client.Send)
 			}
 			h.mutex.Unlock()
-			
+
 			log.Printf("Client %s (User: %s) disconnected", client.ID, client.UserID)
-			
+
+			// Update database with user offline status
+			h.updateUserOnlineStatus(client.UserID, false)
+
 			// Broadcast user offline status
 			h.broadcastUserStatus(client.UserID, "offline")
 
@@ -113,7 +120,7 @@ func (h *Hub) SendToUser(userID string, message []byte) {
 	h.mutex.RLock()
 	client, exists := h.userClients[userID]
 	h.mutex.RUnlock()
-	
+
 	if exists {
 		select {
 		case client.Send <- message:
@@ -136,7 +143,7 @@ func (h *Hub) BroadcastMessage(message []byte) {
 func (h *Hub) GetOnlineUsers() []string {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
-	
+
 	users := make([]string, 0, len(h.userClients))
 	for userID := range h.userClients {
 		users = append(users, userID)
@@ -148,9 +155,35 @@ func (h *Hub) GetOnlineUsers() []string {
 func (h *Hub) IsUserOnline(userID string) bool {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
-	
+
 	_, exists := h.userClients[userID]
 	return exists
+}
+
+// updateUserOnlineStatus updates the user's online status in the database
+func (h *Hub) updateUserOnlineStatus(userID string, isOnline bool) {
+	if isOnline {
+		// Insert or update user as online
+		_, err := database.DB.Exec(`
+			INSERT OR REPLACE INTO online_users (user_id, last_seen)
+			VALUES (?, CURRENT_TIMESTAMP)
+		`, userID)
+		if err != nil {
+			log.Printf("Error updating user online status: %v", err)
+		} else {
+			log.Printf("User %s marked as online in database", userID)
+		}
+	} else {
+		// Remove user from online users table
+		_, err := database.DB.Exec(`
+			DELETE FROM online_users WHERE user_id = ?
+		`, userID)
+		if err != nil {
+			log.Printf("Error removing user from online status: %v", err)
+		} else {
+			log.Printf("User %s removed from online users in database", userID)
+		}
+	}
 }
 
 // broadcastUserStatus broadcasts user online/offline status
@@ -163,13 +196,13 @@ func (h *Hub) broadcastUserStatus(userID, status string) {
 		},
 		Timestamp: time.Now(),
 	}
-	
+
 	data, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("Error marshaling user status message: %v", err)
 		return
 	}
-	
+
 	h.BroadcastMessage(data)
 }
 
@@ -323,13 +356,13 @@ func (c *Client) handlePing() {
 		Data:      map[string]interface{}{"timestamp": time.Now()},
 		Timestamp: time.Now(),
 	}
-	
+
 	data, err := json.Marshal(response)
 	if err != nil {
 		log.Printf("Error marshaling pong response: %v", err)
 		return
 	}
-	
+
 	select {
 	case c.Send <- data:
 	default:
@@ -342,19 +375,19 @@ func BroadcastNewPost(post *models.Post) {
 	if hub == nil {
 		return
 	}
-	
+
 	message := models.WebSocketMessage{
 		Type:      "new_post",
 		Data:      post,
 		Timestamp: time.Now(),
 	}
-	
+
 	data, err := json.Marshal(message)
 	if err != nil {
 		log.Printf("Error marshaling new post message: %v", err)
 		return
 	}
-	
+
 	hub.BroadcastMessage(data)
 }
 
@@ -363,18 +396,18 @@ func SendPrivateMessage(receiverID string, message *models.Message) {
 	if hub == nil {
 		return
 	}
-	
+
 	wsMessage := models.WebSocketMessage{
 		Type:      "private_message",
 		Data:      message,
 		Timestamp: time.Now(),
 	}
-	
+
 	data, err := json.Marshal(wsMessage)
 	if err != nil {
 		log.Printf("Error marshaling private message: %v", err)
 		return
 	}
-	
+
 	hub.SendToUser(receiverID, data)
 }
