@@ -5,14 +5,17 @@ window.ProfilePage = {
     recentActivity: [],
 
     async render() {
+        console.log('Profile page render called');
         window.forumApp.setCurrentPage('profile');
 
         // Require authentication
         if (!window.auth.requireAuth()) {
+            console.log('Authentication required, redirecting');
             return;
         }
 
         this.currentUser = window.auth.getCurrentUser();
+        console.log('Current user:', this.currentUser);
 
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
@@ -29,7 +32,7 @@ window.ProfilePage = {
                     <div class="profile-hero-content">
                         <div class="profile-avatar-wrapper">
                             <img id="profile-avatar"
-                                 src="${this.currentUser.avatarUrl || '/static/images/default-avatar.png'}"
+                                 src="${this.currentUser.avatarUrl || '/static/images/default-avatar.svg'}"
                                  alt="Profile Avatar"
                                  class="profile-avatar">
                             <button class="change-avatar-btn" title="Change Avatar">
@@ -79,6 +82,7 @@ window.ProfilePage = {
                                 <i class="icon-settings">⚙️</i>
                                 Settings
                             </button>
+
                         </div>
                     </div>
                 </div>
@@ -342,7 +346,9 @@ window.ProfilePage = {
             </div>
         `;
 
+        console.log('About to bind events');
         this.bindEvents();
+        console.log('Events bound, loading profile data');
         await this.loadProfileData();
     },
 
@@ -545,6 +551,7 @@ window.ProfilePage = {
     },
 
     bindEvents() {
+        console.log('bindEvents called');
         // Tab switching
         const tabButtons = document.querySelectorAll('.tab-btn');
         tabButtons.forEach(btn => {
@@ -594,6 +601,39 @@ window.ProfilePage = {
         if (bioTextarea) {
             bioTextarea.addEventListener('input', this.updateBioCounter.bind(this));
             this.updateBioCounter({ target: bioTextarea });
+        }
+
+        // Avatar change button
+        const changeAvatarBtn = document.querySelector('.change-avatar-btn');
+        console.log('Looking for change avatar button:', changeAvatarBtn);
+        if (changeAvatarBtn) {
+            console.log('Found change avatar button, adding event listener');
+            changeAvatarBtn.addEventListener('click', (e) => {
+                console.log('Avatar button clicked!', e);
+                e.preventDefault();
+                e.stopPropagation();
+                this.showAvatarUploadModal();
+            });
+        } else {
+            console.log('Change avatar button not found!');
+        }
+
+        // Cover photo change button
+        const changeCoverBtn = document.querySelector('.change-cover-btn');
+        if (changeCoverBtn) {
+            changeCoverBtn.addEventListener('click', this.showCoverUploadModal.bind(this));
+        }
+
+        // Test avatar button
+        const testAvatarBtn = document.getElementById('test-avatar-btn');
+        console.log('Looking for test avatar button:', testAvatarBtn);
+        if (testAvatarBtn) {
+            console.log('Found test avatar button, adding event listener');
+            testAvatarBtn.addEventListener('click', (e) => {
+                console.log('Test avatar button clicked!');
+                e.preventDefault();
+                this.showAvatarUploadModal();
+            });
         }
     },
 
@@ -1000,5 +1040,313 @@ window.ProfilePage = {
 
         // Focus first input
         modal.querySelector('#delete-password').focus();
+    },
+
+    showAvatarUploadModal() {
+        console.log('showAvatarUploadModal called!');
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Change Profile Picture</h3>
+                    <button class="modal-close">&times;</button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="avatar-upload-container">
+                        <div class="current-avatar">
+                            <img id="current-avatar-preview"
+                                 src="${this.currentUser.avatarUrl || '/static/images/default-avatar.svg'}"
+                                 alt="Current Avatar">
+                            <p>Current Avatar</p>
+                        </div>
+
+                        <div class="avatar-upload-section">
+                            <div class="upload-area" id="avatar-upload-area">
+                                <div class="upload-placeholder">
+                                    <i class="upload-icon">📷</i>
+                                    <p>Click to upload or drag & drop</p>
+                                    <small>JPG, PNG, GIF up to 5MB</small>
+                                </div>
+                                <input type="file" id="avatar-file-input" accept="image/*" style="display: none;">
+                            </div>
+
+                            <div class="avatar-preview" id="avatar-preview" style="display: none;">
+                                <img id="new-avatar-preview" alt="New Avatar Preview">
+                                <div class="preview-actions">
+                                    <button type="button" class="btn btn-outline" id="remove-avatar-btn">Remove</button>
+                                    <button type="button" class="btn btn-secondary" id="change-avatar-file-btn">Change File</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="avatar-options">
+                        <h4>Or choose a default avatar:</h4>
+                        <div class="default-avatars">
+                            <div class="default-avatar" data-avatar="/static/images/default-avatar.svg">
+                                <img src="/static/images/default-avatar.svg" alt="Default Avatar" onerror="this.style.display='none'">
+                            </div>
+                            <div class="default-avatar" data-avatar="/static/images/1.jpg">
+                                <img src="/static/images/1.jpg" alt="Avatar 1" onerror="this.style.display='none'">
+                            </div>
+                        </div>
+                        <p class="avatar-note">More avatar options will be available soon!</p>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline modal-cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="save-avatar-btn" disabled>Save Avatar</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        this.bindAvatarModalEvents(modal);
+    },
+
+    bindAvatarModalEvents(modal) {
+        const closeBtn = modal.querySelector('.modal-close');
+        const cancelBtn = modal.querySelector('.modal-cancel');
+        const saveBtn = modal.querySelector('#save-avatar-btn');
+        const fileInput = modal.querySelector('#avatar-file-input');
+        const uploadArea = modal.querySelector('#avatar-upload-area');
+        const avatarPreview = modal.querySelector('#avatar-preview');
+        const newAvatarPreview = modal.querySelector('#new-avatar-preview');
+        const removeAvatarBtn = modal.querySelector('#remove-avatar-btn');
+        const changeFileBtn = modal.querySelector('#change-avatar-file-btn');
+        const defaultAvatars = modal.querySelectorAll('.default-avatar');
+
+        let selectedFile = null;
+        let selectedDefaultAvatar = null;
+
+        const closeModal = () => {
+            document.body.removeChild(modal);
+        };
+
+        // Close modal events
+        closeBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        // File upload events
+        uploadArea.addEventListener('click', () => fileInput.click());
+        changeFileBtn.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        const handleFileSelect = (file) => {
+            // Validate file
+            if (!file.type.startsWith('image/')) {
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.error('Please select an image file');
+                }
+                return;
+            }
+
+            if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.error('File size must be less than 5MB');
+                }
+                return;
+            }
+
+            selectedFile = file;
+            selectedDefaultAvatar = null;
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                newAvatarPreview.src = e.target.result;
+                uploadArea.style.display = 'none';
+                avatarPreview.style.display = 'block';
+                saveBtn.disabled = false;
+
+                // Clear default avatar selection
+                defaultAvatars.forEach(avatar => avatar.classList.remove('selected'));
+            };
+            reader.readAsDataURL(file);
+        };
+
+        // Remove avatar
+        removeAvatarBtn.addEventListener('click', () => {
+            selectedFile = null;
+            selectedDefaultAvatar = null;
+            uploadArea.style.display = 'block';
+            avatarPreview.style.display = 'none';
+            saveBtn.disabled = true;
+            fileInput.value = '';
+
+            // Clear default avatar selection
+            defaultAvatars.forEach(avatar => avatar.classList.remove('selected'));
+        });
+
+        // Default avatar selection
+        defaultAvatars.forEach(avatar => {
+            avatar.addEventListener('click', () => {
+                selectedFile = null;
+                selectedDefaultAvatar = avatar.dataset.avatar;
+
+                // Update UI
+                defaultAvatars.forEach(a => a.classList.remove('selected'));
+                avatar.classList.add('selected');
+
+                uploadArea.style.display = 'block';
+                avatarPreview.style.display = 'none';
+                saveBtn.disabled = false;
+                fileInput.value = '';
+            });
+        });
+
+        // Save avatar
+        saveBtn.addEventListener('click', async () => {
+            console.log('Save avatar button clicked!');
+            console.log('Selected file:', selectedFile);
+            console.log('Selected default avatar:', selectedDefaultAvatar);
+
+            try {
+                window.utils.setLoading(saveBtn, true, 'Saving...');
+
+                let newAvatarUrl;
+
+                if (selectedFile) {
+                    console.log('Processing custom file...');
+                    // For now, use a data URL for preview (temporary solution)
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        newAvatarUrl = e.target.result;
+                        console.log('File converted to data URL');
+
+                        // Update user data
+                        this.currentUser.avatarUrl = newAvatarUrl;
+                        if (window.auth.currentUser) {
+                            window.auth.currentUser.avatarUrl = newAvatarUrl;
+                        }
+                        if (window.forumApp.currentUser) {
+                            window.forumApp.currentUser.avatarUrl = newAvatarUrl;
+                        }
+
+                        // Update UI
+                        this.updateAvatarInUI(newAvatarUrl);
+
+                        if (window.forumApp.notificationComponent) {
+                            window.forumApp.notificationComponent.success('Avatar updated! (Note: This is temporary until backend is implemented)');
+                        } else {
+                            alert('Avatar updated successfully!');
+                        }
+
+                        window.utils.setLoading(saveBtn, false);
+                        closeModal();
+                    };
+                    reader.readAsDataURL(selectedFile);
+                    return;
+
+                } else if (selectedDefaultAvatar) {
+                    console.log('Using default avatar:', selectedDefaultAvatar);
+                    newAvatarUrl = selectedDefaultAvatar;
+                }
+
+                if (newAvatarUrl) {
+                    console.log('Updating UI with new avatar URL:', newAvatarUrl);
+                    // Update user data
+                    this.currentUser.avatarUrl = newAvatarUrl;
+                    if (window.auth.currentUser) {
+                        window.auth.currentUser.avatarUrl = newAvatarUrl;
+                    }
+                    if (window.forumApp.currentUser) {
+                        window.forumApp.currentUser.avatarUrl = newAvatarUrl;
+                    }
+
+                    // Update UI
+                    this.updateAvatarInUI(newAvatarUrl);
+
+                    if (window.forumApp.notificationComponent) {
+                        window.forumApp.notificationComponent.success('Avatar updated! (Note: This is temporary until backend is implemented)');
+                    } else {
+                        alert('Avatar updated successfully!');
+                    }
+
+                    closeModal();
+                }
+
+            } catch (error) {
+                console.error('Failed to update avatar:', error);
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.error(error.message || 'Failed to update avatar');
+                } else {
+                    alert('Failed to update avatar: ' + error.message);
+                }
+            } finally {
+                window.utils.setLoading(saveBtn, false);
+            }
+        });
+    },
+
+    updateAvatarInUI(newAvatarUrl) {
+        console.log('Updating avatar in UI with URL:', newAvatarUrl);
+
+        // Update profile page avatar
+        const profileAvatar = document.getElementById('profile-avatar');
+        if (profileAvatar) {
+            console.log('Updating profile avatar');
+            profileAvatar.src = newAvatarUrl;
+        } else {
+            console.log('Profile avatar element not found');
+        }
+
+        // Update header avatar
+        const headerAvatar = document.getElementById('user-avatar');
+        if (headerAvatar) {
+            console.log('Updating header avatar');
+            headerAvatar.src = newAvatarUrl;
+        } else {
+            console.log('Header avatar element not found');
+        }
+
+        // Update current avatar preview in modal if still open
+        const currentAvatarPreview = document.getElementById('current-avatar-preview');
+        if (currentAvatarPreview) {
+            console.log('Updating current avatar preview');
+            currentAvatarPreview.src = newAvatarUrl;
+        }
+
+        // Update header component if available
+        if (window.forumApp.headerComponent) {
+            console.log('Updating header component');
+            window.forumApp.headerComponent.updateUserInfo(this.currentUser);
+        }
+    },
+
+    showCoverUploadModal() {
+        // Placeholder for cover photo upload functionality
+        if (window.forumApp.notificationComponent) {
+            window.forumApp.notificationComponent.info('Cover photo upload functionality coming soon!');
+        }
     }
 };
