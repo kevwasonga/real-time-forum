@@ -85,8 +85,11 @@ window.forumApp = {
 
         // Initialize sidebar component
         if (window.SidebarComponent) {
+            console.log('🔧 Initializing sidebar component...');
             this.sidebarComponent = window.SidebarComponent;
             this.sidebarComponent.init();
+        } else {
+            console.error('❌ SidebarComponent not found!');
         }
 
         // Initialize chat component
@@ -255,8 +258,13 @@ window.forumApp = {
             // Show authenticated UI
             if (userMenu) userMenu.style.display = 'block';
             if (authButtons) authButtons.style.display = 'none';
-            if (sidebar) sidebar.style.display = 'block';
-            
+            if (sidebar) {
+                sidebar.style.display = 'block';
+                console.log('👥 Sidebar made visible');
+            } else {
+                console.error('❌ Sidebar element not found!');
+            }
+
             // Update user info
             if (userNickname) userNickname.textContent = this.currentUser.nickname;
             if (userAvatar) {
@@ -367,6 +375,18 @@ window.forumApp = {
 document.addEventListener('DOMContentLoaded', () => {
     window.forumApp.init();
 });
+
+// Global debug function for testing
+window.debugOnlineUsers = function() {
+    console.log('=== GLOBAL DEBUG ===');
+    if (window.forumApp && window.forumApp.sidebarComponent) {
+        window.forumApp.sidebarComponent.debugSidebar();
+    } else {
+        console.error('Sidebar component not available');
+        console.log('ForumApp:', window.forumApp);
+        console.log('SidebarComponent:', window.SidebarComponent);
+    }
+};
 
 // Handle page visibility changes
 document.addEventListener('visibilitychange', () => {
