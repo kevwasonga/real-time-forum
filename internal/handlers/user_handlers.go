@@ -276,8 +276,6 @@ func OnlineUsersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("👥 OnlineUsersHandler: Fetching online users for user %s", user.Nickname)
-
 	onlineUsers, err := getOnlineUsers()
 	if err != nil {
 		log.Printf("❌ OnlineUsersHandler: Error fetching online users: %v", err)
@@ -285,7 +283,7 @@ func OnlineUsersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("👥 OnlineUsersHandler: Found %d online users: %+v", len(onlineUsers), onlineUsers)
+	log.Printf("👥 OnlineUsersHandler: Found %d online users for %s", len(onlineUsers), user.Nickname)
 
 	RenderSuccess(w, "Online users retrieved successfully", onlineUsers)
 }
@@ -385,14 +383,13 @@ func friendshipExists(userID1, userID2 string) (bool, error) {
 
 // getOnlineUsers gets all currently online users
 func getOnlineUsers() ([]models.OnlineUser, error) {
-	log.Printf("👥 getOnlineUsers: Querying database for online users...")
-
-	// Get users from the database who have been active recently
+	// Get users from the database who have been active recently (group by user_id to avoid duplicates)
 	rows, err := database.DB.Query(`
-		SELECT ou.user_id, u.nickname, u.first_name, u.last_name, u.avatar_url, ou.last_seen
+		SELECT ou.user_id, u.nickname, u.first_name, u.last_name, u.avatar_url, MAX(ou.last_seen) as last_seen
 		FROM online_users ou
 		JOIN users u ON ou.user_id = u.id
 		WHERE ou.last_seen > datetime('now', '-5 minutes')
+		GROUP BY ou.user_id, u.nickname, u.first_name, u.last_name, u.avatar_url
 		ORDER BY u.nickname ASC
 	`)
 
@@ -405,17 +402,34 @@ func getOnlineUsers() ([]models.OnlineUser, error) {
 	var onlineUsers []models.OnlineUser
 	for rows.Next() {
 		var user models.OnlineUser
+		var lastSeenStr string
+
 		err := rows.Scan(
-			&user.UserID, &user.Nickname, &user.FirstName, &user.LastName, &user.AvatarURL, &user.LastSeen,
+			&user.UserID, &user.Nickname, &user.FirstName, &user.LastName, &user.AvatarURL, &lastSeenStr,
 		)
 		if err != nil {
 			log.Printf("❌ getOnlineUsers: Row scan error: %v", err)
 			return nil, err
 		}
+
+		// Parse the timestamp string into time.Time
+		if lastSeenStr != "" {
+			parsedTime, err := time.Parse("2006-01-02T15:04:05Z", lastSeenStr)
+			if err != nil {
+				// Try alternative format
+				parsedTime, err = time.Parse("2006-01-02 15:04:05", lastSeenStr)
+				if err != nil {
+					log.Printf("⚠️ getOnlineUsers: Could not parse timestamp %s: %v", lastSeenStr, err)
+					parsedTime = time.Now() // Use current time as fallback
+				}
+			}
+			user.LastSeen = parsedTime
+		} else {
+			user.LastSeen = time.Now()
+		}
+
 		onlineUsers = append(onlineUsers, user)
-		log.Printf("👥 getOnlineUsers: Found user %s (ID: %s)", user.Nickname, user.UserID)
 	}
 
-	log.Printf("👥 getOnlineUsers: Total users found: %d", len(onlineUsers))
 	return onlineUsers, nil
 }
