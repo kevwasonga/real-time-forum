@@ -46,8 +46,8 @@ type Hub struct {
 	// Unregister requests from clients
 	unregister chan *Client
 
-	// User ID to client mapping for direct messaging
-	userClients map[string]*Client
+	// User ID to multiple clients mapping (supports multiple sessions per user)
+	userClients map[string][]*Client
 
 	// Mutex for thread-safe operations
 	mutex sync.RWMutex
@@ -60,7 +60,7 @@ func NewHub() *Hub {
 		register:    make(chan *Client, 256),
 		unregister:  make(chan *Client, 256),
 		clients:     make(map[*Client]bool),
-		userClients: make(map[string]*Client),
+		userClients: make(map[string][]*Client),
 	}
 }
 
@@ -71,49 +71,71 @@ func (h *Hub) Run() {
 		case client := <-h.register:
 			h.mutex.Lock()
 
-			// Check if user already has a connection
-			if existingClient, exists := h.userClients[client.UserID]; exists {
-				log.Printf("⚠️ User %s already has a connection (Client: %s), replacing with new connection (Client: %s)",
-					client.UserID, existingClient.ID, client.ID)
-				// Close existing connection
-				close(existingClient.Send)
-				delete(h.clients, existingClient)
-			}
-
+			// Add client to general clients map
 			h.clients[client] = true
-			h.userClients[client.UserID] = client
+
+			// Add client to user-specific clients list (supports multiple sessions per user)
+			if _, exists := h.userClients[client.UserID]; !exists {
+				h.userClients[client.UserID] = []*Client{}
+			}
+			h.userClients[client.UserID] = append(h.userClients[client.UserID], client)
+
 			totalClients := len(h.clients)
 			totalUsers := len(h.userClients)
+			userSessions := len(h.userClients[client.UserID])
 			h.mutex.Unlock()
 
-			log.Printf("✅ Client %s (User: %s) connected. Total clients: %d, Total unique users: %d",
-				client.ID, client.UserID, totalClients, totalUsers)
+			log.Printf("✅ Client %s (User: %s) connected. Total clients: %d, Total unique users: %d, User sessions: %d",
+				client.ID, client.UserID, totalClients, totalUsers, userSessions)
 
-			// Update database with user online status
-			h.updateUserOnlineStatus(client.UserID, true)
+			// Update database with user online status (using client ID as session ID)
+			h.updateUserOnlineStatus(client.UserID, client.ID, true)
 
-			// Broadcast user online status
-			h.broadcastUserStatus(client.UserID, "online")
+			// Only broadcast user online status if this is their first session
+			if userSessions == 1 {
+				h.broadcastUserStatus(client.UserID, "online")
+			}
 
 		case client := <-h.unregister:
 			h.mutex.Lock()
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
-				delete(h.userClients, client.UserID)
 				close(client.Send)
+
+				// Remove client from user's client list
+				if userClients, exists := h.userClients[client.UserID]; exists {
+					// Find and remove this specific client
+					for i, c := range userClients {
+						if c == client {
+							h.userClients[client.UserID] = append(userClients[:i], userClients[i+1:]...)
+							break
+						}
+					}
+					// If no more clients for this user, remove the user entry
+					if len(h.userClients[client.UserID]) == 0 {
+						delete(h.userClients, client.UserID)
+					}
+				}
 			}
+
 			totalClients := len(h.clients)
 			totalUsers := len(h.userClients)
+			userSessions := 0
+			if userClients, exists := h.userClients[client.UserID]; exists {
+				userSessions = len(userClients)
+			}
 			h.mutex.Unlock()
 
-			log.Printf("❌ Client %s (User: %s) disconnected. Total clients: %d, Total unique users: %d",
-				client.ID, client.UserID, totalClients, totalUsers)
+			log.Printf("❌ Client %s (User: %s) disconnected. Total clients: %d, Total unique users: %d, Remaining user sessions: %d",
+				client.ID, client.UserID, totalClients, totalUsers, userSessions)
 
-			// Update database with user offline status
-			h.updateUserOnlineStatus(client.UserID, false)
+			// Update database with user offline status (remove this specific session)
+			h.updateUserOnlineStatus(client.UserID, client.ID, false)
 
-			// Broadcast user offline status
-			h.broadcastUserStatus(client.UserID, "offline")
+			// Only broadcast user offline status if this was their last session
+			if userSessions == 0 {
+				h.broadcastUserStatus(client.UserID, "offline")
+			}
 
 		case message := <-h.broadcast:
 			h.mutex.RLock()
@@ -131,21 +153,37 @@ func (h *Hub) Run() {
 	}
 }
 
-// SendToUser sends a message to a specific user
+// SendToUser sends a message to all sessions of a specific user
 func (h *Hub) SendToUser(userID string, message []byte) {
 	h.mutex.RLock()
-	client, exists := h.userClients[userID]
+	clients, exists := h.userClients[userID]
 	h.mutex.RUnlock()
 
 	if exists {
-		select {
-		case client.Send <- message:
-		default:
-			h.mutex.Lock()
-			close(client.Send)
-			delete(h.clients, client)
-			delete(h.userClients, client.UserID)
-			h.mutex.Unlock()
+		for _, client := range clients {
+			select {
+			case client.Send <- message:
+			default:
+				// Client's send channel is full, remove this client
+				h.mutex.Lock()
+				close(client.Send)
+				delete(h.clients, client)
+
+				// Remove from user's client list
+				if userClients, userExists := h.userClients[userID]; userExists {
+					for i, c := range userClients {
+						if c == client {
+							h.userClients[userID] = append(userClients[:i], userClients[i+1:]...)
+							break
+						}
+					}
+					// If no more clients for this user, remove the user entry
+					if len(h.userClients[userID]) == 0 {
+						delete(h.userClients, userID)
+					}
+				}
+				h.mutex.Unlock()
+			}
 		}
 	}
 }
@@ -167,44 +205,44 @@ func (h *Hub) GetOnlineUsers() []string {
 	return users
 }
 
-// IsUserOnline checks if a user is online
+// IsUserOnline checks if a user is online (has at least one active session)
 func (h *Hub) IsUserOnline(userID string) bool {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	_, exists := h.userClients[userID]
-	return exists
+	clients, exists := h.userClients[userID]
+	return exists && len(clients) > 0
 }
 
 // updateUserOnlineStatus updates the user's online status in the database
-func (h *Hub) updateUserOnlineStatus(userID string, isOnline bool) {
-	log.Printf("👥 updateUserOnlineStatus: User %s, isOnline: %v", userID, isOnline)
+func (h *Hub) updateUserOnlineStatus(userID, sessionID string, isOnline bool) {
+	log.Printf("👥 updateUserOnlineStatus: User %s, Session %s, isOnline: %v", userID, sessionID, isOnline)
 
 	if isOnline {
-		// Insert or update user as online
+		// Insert session for user
 		result, err := database.DB.Exec(`
-			INSERT OR REPLACE INTO online_users (user_id, last_seen)
-			VALUES (?, CURRENT_TIMESTAMP)
-		`, userID)
+			INSERT OR REPLACE INTO online_users (user_id, session_id, last_seen)
+			VALUES (?, ?, CURRENT_TIMESTAMP)
+		`, userID, sessionID)
 		if err != nil {
 			log.Printf("❌ Error updating user online status: %v", err)
 		} else {
 			rowsAffected, _ := result.RowsAffected()
-			log.Printf("✅ User %s marked as online in database (rows affected: %d)", userID, rowsAffected)
+			log.Printf("✅ User %s session %s marked as online in database (rows affected: %d)", userID, sessionID, rowsAffected)
 
 			// Debug: Check current online users in database
 			h.debugOnlineUsersTable()
 		}
 	} else {
-		// Remove user from online users table
+		// Remove specific session from online users table
 		result, err := database.DB.Exec(`
-			DELETE FROM online_users WHERE user_id = ?
-		`, userID)
+			DELETE FROM online_users WHERE user_id = ? AND session_id = ?
+		`, userID, sessionID)
 		if err != nil {
-			log.Printf("❌ Error removing user from online status: %v", err)
+			log.Printf("❌ Error removing user session from online status: %v", err)
 		} else {
 			rowsAffected, _ := result.RowsAffected()
-			log.Printf("✅ User %s removed from online users in database (rows affected: %d)", userID, rowsAffected)
+			log.Printf("✅ User %s session %s removed from online users in database (rows affected: %d)", userID, sessionID, rowsAffected)
 
 			// Debug: Check current online users in database
 			h.debugOnlineUsersTable()
@@ -215,7 +253,7 @@ func (h *Hub) updateUserOnlineStatus(userID string, isOnline bool) {
 // debugOnlineUsersTable prints current online users in database for debugging
 func (h *Hub) debugOnlineUsersTable() {
 	rows, err := database.DB.Query(`
-		SELECT ou.user_id, u.nickname, ou.last_seen
+		SELECT ou.user_id, u.nickname, ou.session_id, ou.last_seen
 		FROM online_users ou
 		JOIN users u ON ou.user_id = u.id
 		ORDER BY ou.last_seen DESC
@@ -229,16 +267,16 @@ func (h *Hub) debugOnlineUsersTable() {
 	log.Printf("🔍 Current online_users table contents:")
 	count := 0
 	for rows.Next() {
-		var userID, nickname, lastSeen string
-		if err := rows.Scan(&userID, &nickname, &lastSeen); err != nil {
+		var userID, nickname, sessionID, lastSeen string
+		if err := rows.Scan(&userID, &nickname, &sessionID, &lastSeen); err != nil {
 			log.Printf("❌ Debug scan error: %v", err)
 			continue
 		}
 		count++
-		log.Printf("   %d. User: %s (ID: %s) - Last seen: %s", count, nickname, userID, lastSeen)
+		log.Printf("   %d. User: %s (ID: %s) Session: %s - Last seen: %s", count, nickname, userID, sessionID, lastSeen)
 	}
 	if count == 0 {
-		log.Printf("   (No users in online_users table)")
+		log.Printf("   (No sessions in online_users table)")
 	}
 }
 
