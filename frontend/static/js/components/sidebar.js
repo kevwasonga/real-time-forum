@@ -191,20 +191,30 @@ window.SidebarComponent = {
 
         console.log('👥 Starting conversation with user:', user);
 
-        // Open chat component directly
-        if (window.forumApp.chatComponent || window.ChatComponent) {
-            const chatComponent = window.forumApp.chatComponent || window.ChatComponent;
-            chatComponent.openConversation(user);
+        // Navigate to messages page
+        if (window.forumApp.router) {
+            window.forumApp.router.navigate('/messages');
 
-            // Show notification
-            if (window.forumApp.notificationComponent) {
-                window.forumApp.notificationComponent.info(`Opening chat with ${user.nickname}`);
-            }
-        } else {
-            console.error('❌ Chat component not available');
-            if (window.forumApp.notificationComponent) {
-                window.forumApp.notificationComponent.error('Chat feature not available');
-            }
+            // Wait for messages page to load, then select the user
+            setTimeout(() => {
+                if (window.MessagesPage) {
+                    // Convert user object to match expected format
+                    const userForMessages = {
+                        id: user.userId,
+                        nickname: user.nickname,
+                        firstName: user.firstName || '',
+                        lastName: user.lastName || '',
+                        avatarURL: user.avatarUrl
+                    };
+
+                    // Start new conversation with this user
+                    window.MessagesPage.selectUser(userForMessages);
+
+                    console.log('✅ Navigated to messages and selected user:', user.nickname);
+                } else {
+                    console.error('❌ Messages page not available');
+                }
+            }, 200); // Increased timeout to ensure page loads
         }
     },
 
