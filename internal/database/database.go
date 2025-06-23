@@ -189,6 +189,19 @@ func createTables() error {
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
 
+	// Private messages table for storing chat messages
+	privateMessagesTable := `
+	CREATE TABLE IF NOT EXISTS private_messages (
+		id TEXT PRIMARY KEY,
+		sender_id TEXT NOT NULL,
+		receiver_id TEXT NOT NULL,
+		content TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		read_at TIMESTAMP NULL,
+		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+
 	tables := []string{
 		usersTable,
 		googleAuthTable,
@@ -201,6 +214,7 @@ func createTables() error {
 		likesTable,
 		friendsTable,
 		onlineUsersTable,
+		privateMessagesTable,
 	}
 
 	for _, table := range tables {
@@ -221,6 +235,8 @@ func createTables() error {
 		"CREATE INDEX IF NOT EXISTS idx_likes_comment_id ON likes(comment_id);",
 		"CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);",
 		"CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);",
+		"CREATE INDEX IF NOT EXISTS idx_private_messages_sender_receiver ON private_messages(sender_id, receiver_id);",
+		"CREATE INDEX IF NOT EXISTS idx_private_messages_created_at ON private_messages(created_at DESC);",
 	}
 
 	for _, index := range indexes {
