@@ -29,21 +29,24 @@
                     <a href="/posts" data-route="/posts" class="nav-link">Posts</a>
                     <a href="/messages" data-route="/messages" class="nav-link">Messages</a>
                     <a href="/friends" data-route="/friends" class="nav-link">Friends</a>
+                      <a id="logout-btn" class="logout-btn">Logout</a>
                 </nav>
 
                 <div class="header-right">
                     <div id="user-menu" class="user-menu" style="display: none;">
-                        <button class="user-avatar" id="user-avatar-btn">
-                            <img id="user-avatar" src="/static/images/default-avatar.png" alt="User Avatar">
-                            <span id="user-nickname">User</span>
-                        </button>
-                        <div class="user-dropdown" id="user-dropdown">
-                            <a href="/profile" data-route="/profile">Profile</a>
-                            <a href="/settings" data-route="/settings">Settings</a>
-                            <button id="logout-btn">Logout</button>
+                        <div class="user-avatar-container">
+                            <button class="user-avatar" id="user-avatar-btn">
+                                <img id="user-avatar" src="/static/images/default-avatar.svg" alt="User Avatar">
+                                <span id="user-nickname">User</span>
+                            </button>
+                            <div class="user-dropdown" id="user-dropdown">
+                                <a href="/profile" data-route="/profile">Profile</a>
+                                <a href="/settings" data-route="/settings">Settings</a>
+                            </div>
                         </div>
+                        <!-- <button id="logout-btn" class="logout-btn">Logout</button> -->
                     </div>
-                    
+
                     <div id="auth-buttons" class="auth-buttons">
                         <a href="/login" data-route="/login" class="btn btn-outline">Login</a>
                         <a href="/register" data-route="/register" class="btn btn-primary">Register</a>

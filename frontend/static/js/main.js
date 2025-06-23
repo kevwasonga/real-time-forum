@@ -259,8 +259,8 @@ window.forumApp = {
             
             // Update user info
             if (userNickname) userNickname.textContent = this.currentUser.nickname;
-            if (userAvatar && this.currentUser.avatarUrl) {
-                userAvatar.src = this.currentUser.avatarUrl;
+            if (userAvatar) {
+                userAvatar.src = this.currentUser.avatarUrl || '/static/images/default-avatar.svg';
             }
             
         } else {
@@ -274,22 +274,6 @@ window.forumApp = {
         const logoutBtn = document.getElementById('logout-btn');
         if (logoutBtn) {
             logoutBtn.onclick = () => this.logout();
-        }
-
-        // Set up user avatar dropdown
-        const userAvatarBtn = document.getElementById('user-avatar-btn');
-        const userDropdown = document.getElementById('user-dropdown');
-        if (userAvatarBtn && userDropdown) {
-            userAvatarBtn.onclick = () => {
-                userDropdown.classList.toggle('show');
-            };
-
-            // Close dropdown when clicking outside
-            document.addEventListener('click', (event) => {
-                if (!userAvatarBtn.contains(event.target)) {
-                    userDropdown.classList.remove('show');
-                }
-            });
         }
     },
 
