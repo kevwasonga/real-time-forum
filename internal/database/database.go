@@ -179,10 +179,12 @@ func createTables() error {
 		UNIQUE(requester_id, addressee_id)
 	);`
 
-	// Online users table for tracking active users
+	// Online users table for tracking active users (supports multiple sessions per user)
 	onlineUsersTable := `
 	CREATE TABLE IF NOT EXISTS online_users (
-		user_id TEXT PRIMARY KEY,
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id TEXT NOT NULL,
+		session_id TEXT NOT NULL UNIQUE,
 		last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
@@ -225,6 +227,56 @@ func createTables() error {
 		if _, err := DB.Exec(index); err != nil {
 			return fmt.Errorf("failed to create index: %v", err)
 		}
+	}
+
+	// Migrate online_users table to new schema if needed
+	if err := migrateOnlineUsersTable(); err != nil {
+		return fmt.Errorf("failed to migrate online_users table: %v", err)
+	}
+
+	return nil
+}
+
+// migrateOnlineUsersTable migrates the online_users table to support multiple sessions per user
+func migrateOnlineUsersTable() error {
+	// Check if session_id column exists
+	var columnExists bool
+	err := DB.QueryRow(`
+		SELECT COUNT(*) > 0
+		FROM pragma_table_info('online_users')
+		WHERE name = 'session_id'
+	`).Scan(&columnExists)
+
+	if err != nil {
+		return fmt.Errorf("failed to check table schema: %v", err)
+	}
+
+	// If session_id column doesn't exist, we need to recreate the table
+	if !columnExists {
+		log.Println("🔄 Migrating online_users table to support multiple sessions...")
+
+		// Drop the old table
+		_, err := DB.Exec("DROP TABLE IF EXISTS online_users")
+		if err != nil {
+			return fmt.Errorf("failed to drop old online_users table: %v", err)
+		}
+
+		// Create the new table with the updated schema
+		newOnlineUsersTable := `
+		CREATE TABLE IF NOT EXISTS online_users (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id TEXT NOT NULL,
+			session_id TEXT NOT NULL UNIQUE,
+			last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`
+
+		_, err = DB.Exec(newOnlineUsersTable)
+		if err != nil {
+			return fmt.Errorf("failed to create new online_users table: %v", err)
+		}
+
+		log.Println("✅ Successfully migrated online_users table")
 	}
 
 	return nil
