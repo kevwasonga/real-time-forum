@@ -222,7 +222,7 @@ func getUserConversations(userID string) ([]models.Conversation, error) {
 
 // getMessagesBetweenUsers gets messages between two users
 func getMessagesBetweenUsers(userID1, userID2 string) ([]models.Message, error) {
-	// Get last 50 messages by default, ordered by creation time
+	// Get last 10 messages by default, ordered by creation time (most recent first, then reverse)
 	rows, err := database.DB.Query(`
 		SELECT pm.id, pm.sender_id, pm.receiver_id, pm.content, pm.created_at, pm.read_at,
 		       sender.nickname as sender_nickname,
@@ -232,8 +232,8 @@ func getMessagesBetweenUsers(userID1, userID2 string) ([]models.Message, error) 
 		JOIN users receiver ON pm.receiver_id = receiver.id
 		WHERE (pm.sender_id = ? AND pm.receiver_id = ?)
 		   OR (pm.sender_id = ? AND pm.receiver_id = ?)
-		ORDER BY pm.created_at ASC
-		LIMIT 50
+		ORDER BY pm.created_at DESC
+		LIMIT 10
 	`, userID1, userID2, userID2, userID1)
 
 	if err != nil {
@@ -353,10 +353,10 @@ func getMessageByID(messageID string) (*models.Message, error) {
 // markMessagesAsRead marks messages as read
 func markMessagesAsRead(receiverID, senderID string) error {
 	_, err := database.DB.Exec(`
-		UPDATE messages 
-		SET read_at = ? 
+		UPDATE private_messages
+		SET read_at = CURRENT_TIMESTAMP
 		WHERE receiver_id = ? AND sender_id = ? AND read_at IS NULL
-	`, time.Now(), receiverID, senderID)
+	`, receiverID, senderID)
 
 	return err
 }
