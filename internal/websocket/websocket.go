@@ -2,7 +2,9 @@ package websocket
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -191,6 +193,27 @@ func (h *Hub) SendToUser(userID string, message []byte) {
 // BroadcastMessage broadcasts a message to all connected clients
 func (h *Hub) BroadcastMessage(message []byte) {
 	h.broadcast <- message
+}
+
+// SendPrivateMessage sends a private message to a specific user
+func (h *Hub) SendPrivateMessage(userID string, message map[string]interface{}) {
+	// Create WebSocket message
+	wsMessage := models.WebSocketMessage{
+		Type:      "private_message_received",
+		Data:      message,
+		Timestamp: time.Now(),
+	}
+
+	data, err := json.Marshal(wsMessage)
+	if err != nil {
+		log.Printf("❌ Error marshaling private message: %v", err)
+		return
+	}
+
+	// Send to all sessions of the target user
+	h.SendToUser(userID, data)
+
+	log.Printf("📨 Private message delivered to user %s", userID)
 }
 
 // GetOnlineUsers returns a list of online user IDs
@@ -445,8 +468,125 @@ func (c *Client) handleMessage(message []byte) {
 
 // handlePrivateMessage handles private message sending
 func (c *Client) handlePrivateMessage(data interface{}) {
-	// Implementation for private messaging
-	log.Printf("Private message from user %s: %v", c.UserID, data)
+	log.Printf("📨 Private message from user %s: %v", c.UserID, data)
+
+	// Parse the message data
+	messageData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("❌ Invalid private message data format")
+		return
+	}
+
+	receiverID, ok := messageData["receiverId"].(string)
+	if !ok || receiverID == "" {
+		log.Printf("❌ Missing or invalid receiver ID")
+		return
+	}
+
+	content, ok := messageData["content"].(string)
+	if !ok || content == "" {
+		log.Printf("❌ Missing or invalid message content")
+		return
+	}
+
+	// Don't allow sending messages to self
+	if receiverID == c.UserID {
+		log.Printf("❌ User %s attempted to send message to self", c.UserID)
+		return
+	}
+
+	log.Printf("📨 Processing private message: %s -> %s: %s", c.UserID, receiverID, content)
+
+	// Store message in database
+	messageID, err := c.storePrivateMessage(receiverID, content)
+	if err != nil {
+		log.Printf("❌ Failed to store private message: %v", err)
+		c.sendErrorMessage("Failed to send message")
+		return
+	}
+
+	// Create message object for real-time delivery
+	message := map[string]interface{}{
+		"id":         messageID,
+		"senderId":   c.UserID,
+		"receiverId": receiverID,
+		"content":    content,
+		"timestamp":  time.Now().Format(time.RFC3339),
+		"type":       "private_message",
+	}
+
+	// Send to receiver via WebSocket
+	c.Hub.SendPrivateMessage(receiverID, message)
+
+	// Send confirmation back to sender
+	c.sendMessageConfirmation(message)
+
+	log.Printf("✅ Private message sent successfully: %s -> %s", c.UserID, receiverID)
+}
+
+// storePrivateMessage stores a private message in the database
+func (c *Client) storePrivateMessage(receiverID, content string) (string, error) {
+	messageID := generateMessageID()
+
+	_, err := database.DB.Exec(`
+		INSERT INTO private_messages (id, sender_id, receiver_id, content, created_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`, messageID, c.UserID, receiverID, content)
+
+	if err != nil {
+		return "", err
+	}
+
+	return messageID, nil
+}
+
+// sendErrorMessage sends an error message back to the client
+func (c *Client) sendErrorMessage(errorMsg string) {
+	errorResponse := models.WebSocketMessage{
+		Type: "error",
+		Data: map[string]interface{}{
+			"message": errorMsg,
+		},
+		Timestamp: time.Now(),
+	}
+
+	data, err := json.Marshal(errorResponse)
+	if err != nil {
+		log.Printf("❌ Error marshaling error message: %v", err)
+		return
+	}
+
+	select {
+	case c.Send <- data:
+	default:
+		log.Printf("❌ Client send channel full, could not send error message")
+	}
+}
+
+// sendMessageConfirmation sends a confirmation back to the sender
+func (c *Client) sendMessageConfirmation(message map[string]interface{}) {
+	confirmation := models.WebSocketMessage{
+		Type:      "message_sent",
+		Data:      message,
+		Timestamp: time.Now(),
+	}
+
+	data, err := json.Marshal(confirmation)
+	if err != nil {
+		log.Printf("❌ Error marshaling message confirmation: %v", err)
+		return
+	}
+
+	select {
+	case c.Send <- data:
+	default:
+		log.Printf("❌ Client send channel full, could not send confirmation")
+	}
+}
+
+// generateMessageID generates a unique message ID
+func generateMessageID() string {
+	return fmt.Sprintf("msg_%d_%d", time.Now().UnixNano(), rand.Intn(10000))
 }
 
 // handleTypingIndicator handles typing indicators
