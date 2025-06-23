@@ -380,6 +380,27 @@ window.forumApp = {
      */
     setCurrentPage(pageName) {
         this.currentPage = pageName;
+
+        // Handle sidebar visibility based on page
+        this.updateSidebarVisibility(pageName);
+    },
+
+    /**
+     * Update sidebar visibility based on current page
+     */
+    updateSidebarVisibility(pageName) {
+        const sidebar = document.getElementById('sidebar');
+        if (!sidebar) return;
+
+        if (pageName === 'messages') {
+            // Hide sidebar on messages page to give more space for chat
+            sidebar.style.display = 'none';
+            console.log('👥 Hiding right sidebar for messages page');
+        } else if (this.isAuthenticated) {
+            // Show sidebar on other pages if user is authenticated
+            sidebar.style.display = 'block';
+            console.log('👥 Showing right sidebar for page:', pageName);
+        }
     }
 };
 
