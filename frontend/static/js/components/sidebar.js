@@ -36,11 +36,16 @@ window.SidebarComponent = {
     startUpdating() {
         console.log('👥 Starting online users updates...');
         // Only update if user is authenticated
-        if (window.auth && window.auth.isLoggedIn()) {
+        const isAuthenticated = (window.auth && window.auth.isLoggedIn()) ||
+                               (window.forumApp && window.forumApp.isAuthenticated);
+
+        if (isAuthenticated) {
             console.log('👥 User is authenticated, starting updates');
             this.updateOnlineUsers();
             this.updateInterval = setInterval(() => {
-                if (window.auth && window.auth.isLoggedIn()) {
+                const stillAuthenticated = (window.auth && window.auth.isLoggedIn()) ||
+                                         (window.forumApp && window.forumApp.isAuthenticated);
+                if (stillAuthenticated) {
                     console.log('👥 Periodic update of online users');
                     this.updateOnlineUsers();
                 }
@@ -48,6 +53,13 @@ window.SidebarComponent = {
         } else {
             console.log('👥 User not authenticated, skipping updates');
         }
+    },
+
+    // Method to restart updates when authentication state changes
+    restart() {
+        console.log('👥 Restarting sidebar component...');
+        this.stopUpdating();
+        this.startUpdating();
     },
 
     stopUpdating() {
@@ -67,8 +79,6 @@ window.SidebarComponent = {
 
                 // Filter out current user
                 const currentUserId = window.forumApp.currentUser?.id;
-                console.log('👥 Current user ID:', currentUserId);
-                console.log('👥 Raw users from API:', users);
                 if (currentUserId) {
                     users = users.filter(user => user.userId !== currentUserId);
                     console.log('👥 Filtered out current user, remaining users:', users.length);
@@ -146,7 +156,6 @@ window.SidebarComponent = {
         }
 
         sortedUsers.forEach(user => {
-            console.log('👥 Creating element for user:', user);
             const userElement = this.createUserElement(user);
             onlineUsersContainer.appendChild(userElement);
         });
@@ -159,8 +168,6 @@ window.SidebarComponent = {
 
         const avatarUrl = user.avatarUrl || '/static/images/default-avatar.svg';
         const displayName = user.nickname || `${user.firstName} ${user.lastName}`.trim() || 'Unknown User';
-
-        console.log('👥 Creating user element for:', { userId: user.userId, nickname: user.nickname, displayName });
 
         userDiv.innerHTML = `
             <img src="${avatarUrl}" alt="${displayName}'s avatar" class="online-user-avatar">
