@@ -191,16 +191,20 @@ window.SidebarComponent = {
 
         console.log('👥 Starting conversation with user:', user);
 
-        // Navigate to messages page with this user
-        if (window.forumApp.router) {
-            window.forumApp.router.navigate('/messages');
+        // Open chat component directly
+        if (window.forumApp.chatComponent || window.ChatComponent) {
+            const chatComponent = window.forumApp.chatComponent || window.ChatComponent;
+            chatComponent.openConversation(user);
 
-            // Set the selected user for messaging
-            setTimeout(() => {
-                if (window.forumApp.messagesComponent) {
-                    window.forumApp.messagesComponent.selectUser(user);
-                }
-            }, 100);
+            // Show notification
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.info(`Opening chat with ${user.nickname}`);
+            }
+        } else {
+            console.error('❌ Chat component not available');
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error('Chat feature not available');
+            }
         }
     },
 
