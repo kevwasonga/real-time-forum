@@ -221,6 +221,12 @@ window.forumApp = {
             if (this.notificationComponent) {
                 this.notificationComponent.success('Connected to real-time updates');
             }
+
+            // Immediately fetch online users when WebSocket connects
+            if (this.sidebarComponent) {
+                console.log('👥 Triggering online users update after WebSocket connection');
+                this.sidebarComponent.updateOnlineUsers();
+            }
         });
 
         this.websocket.addEventListener('disconnected', () => {
@@ -317,13 +323,19 @@ window.forumApp = {
     onAuthSuccess(user) {
         this.currentUser = user;
         this.isAuthenticated = true;
-        
+
         // Initialize WebSocket
         this.initWebSocket();
-        
+
         // Update UI
         this.updateAuthUI();
-        
+
+        // Restart sidebar to immediately fetch online users for real-time experience
+        if (this.sidebarComponent) {
+            console.log('👥 Restarting sidebar component after login');
+            this.sidebarComponent.restart();
+        }
+
         // Navigate to home page
         if (this.router) {
             this.router.navigate('/');
