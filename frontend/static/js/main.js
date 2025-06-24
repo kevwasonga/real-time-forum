@@ -85,8 +85,11 @@ window.forumApp = {
 
         // Initialize sidebar component
         if (window.SidebarComponent) {
+            console.log('🔧 Initializing sidebar component...');
             this.sidebarComponent = window.SidebarComponent;
             this.sidebarComponent.init();
+        } else {
+            console.error('❌ SidebarComponent not found!');
         }
 
         // Initialize chat component
@@ -218,6 +221,12 @@ window.forumApp = {
             if (this.notificationComponent) {
                 this.notificationComponent.success('Connected to real-time updates');
             }
+
+            // Immediately fetch online users when WebSocket connects
+            if (this.sidebarComponent) {
+                console.log('👥 Triggering online users update after WebSocket connection');
+                this.sidebarComponent.updateOnlineUsers();
+            }
         });
 
         this.websocket.addEventListener('disconnected', () => {
@@ -255,8 +264,13 @@ window.forumApp = {
             // Show authenticated UI
             if (userMenu) userMenu.style.display = 'block';
             if (authButtons) authButtons.style.display = 'none';
-            if (sidebar) sidebar.style.display = 'block';
-            
+            if (sidebar) {
+                sidebar.style.display = 'block';
+                console.log('👥 Sidebar made visible');
+            } else {
+                console.error('❌ Sidebar element not found!');
+            }
+
             // Update user info
             if (userNickname) userNickname.textContent = this.currentUser.nickname;
             if (userAvatar) {
@@ -309,13 +323,19 @@ window.forumApp = {
     onAuthSuccess(user) {
         this.currentUser = user;
         this.isAuthenticated = true;
-        
+
         // Initialize WebSocket
         this.initWebSocket();
-        
+
         // Update UI
         this.updateAuthUI();
-        
+
+        // Restart sidebar to immediately fetch online users for real-time experience
+        if (this.sidebarComponent) {
+            console.log('👥 Restarting sidebar component after login');
+            this.sidebarComponent.restart();
+        }
+
         // Navigate to home page
         if (this.router) {
             this.router.navigate('/');
@@ -360,6 +380,27 @@ window.forumApp = {
      */
     setCurrentPage(pageName) {
         this.currentPage = pageName;
+
+        // Handle sidebar visibility based on page
+        this.updateSidebarVisibility(pageName);
+    },
+
+    /**
+     * Update sidebar visibility based on current page
+     */
+    updateSidebarVisibility(pageName) {
+        const sidebar = document.getElementById('sidebar');
+        if (!sidebar) return;
+
+        if (pageName === 'messages') {
+            // Hide sidebar on messages page to give more space for chat
+            sidebar.style.display = 'none';
+            console.log('👥 Hiding right sidebar for messages page');
+        } else if (this.isAuthenticated) {
+            // Show sidebar on other pages if user is authenticated
+            sidebar.style.display = 'block';
+            console.log('👥 Showing right sidebar for page:', pageName);
+        }
     }
 };
 

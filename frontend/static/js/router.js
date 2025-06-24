@@ -76,6 +76,12 @@ window.Router = class {
             // Update navigation UI
             this.updateNavigation(path);
 
+            // Update current page in main app
+            if (window.forumApp && window.forumApp.setCurrentPage) {
+                const pageName = path === '/' ? 'home' : path.substring(1);
+                window.forumApp.setCurrentPage(pageName);
+            }
+
             // Execute route handler
             await route.handler(path);
 

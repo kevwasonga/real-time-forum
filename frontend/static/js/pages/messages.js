@@ -36,6 +36,7 @@ window.MessagesPage = {
                         <div class="no-conversation-selected">
                             <h3>Select a conversation</h3>
                             <p>Choose a conversation from the sidebar to start messaging</p>
+                            <button id="test-chat-btn" style="margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Test Chat Display</button>
                         </div>
                     </div>
                 </div>
@@ -44,6 +45,7 @@ window.MessagesPage = {
 
         await this.loadConversations();
         this.bindEvents();
+        this.bindTestButton();
     },
 
     bindEvents() {
@@ -121,30 +123,45 @@ window.MessagesPage = {
 
         // Bind conversation click events
         const conversationItems = container.querySelectorAll('.conversation-item');
+        console.log('🔗 Found', conversationItems.length, 'conversation items to bind');
+
         conversationItems.forEach(item => {
-            item.addEventListener('click', () => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                console.log('👆 Conversation clicked!');
                 const userID = item.dataset.userId;
+                console.log('👤 User ID:', userID);
                 const conversation = this.conversations.find(c => c.userID === userID);
+                console.log('💬 Found conversation:', conversation);
+
                 if (conversation) {
+                    console.log('✅ Opening conversation with:', conversation.nickname);
                     this.selectConversation(conversation);
+                } else {
+                    console.error('❌ No conversation found for user ID:', userID);
                 }
             });
         });
     },
 
     async selectConversation(conversation) {
+        console.log('🔄 selectConversation called with:', conversation);
         this.selectedConversation = conversation;
-        
-        // Update UI
+
+        // Update UI to show active state
         this.renderConversations(); // Re-render to show active state
-        
-        // Load messages
+
+        // Load messages and render chat interface in main area
         await this.loadMessages(conversation.userID);
-        
-        // Open chat component if available
-        if (window.forumApp.chatComponent) {
-            window.forumApp.chatComponent.openConversation(conversation);
+
+        // Force render messages if not already rendered
+        if (this.selectedConversation) {
+            this.renderMessages();
         }
+
+        console.log('💬 Chat opened in main area for:', conversation.nickname);
     },
 
     async loadMessages(userID) {
@@ -153,31 +170,49 @@ window.MessagesPage = {
             if (response.success) {
                 this.messages = response.data || [];
                 this.renderMessages();
+                console.log('📨 Loaded', this.messages.length, 'messages for conversation');
+            } else {
+                console.error('❌ Failed to load messages:', response.message);
             }
         } catch (error) {
-            console.error('Failed to load messages:', error);
+            console.error('❌ Failed to load messages:', error);
         }
     },
 
     renderMessages() {
         const container = document.getElementById('messages-content');
-        if (!container || !this.selectedConversation) return;
+        console.log('🎨 renderMessages called');
+        console.log('🎨 Container found:', !!container);
+        console.log('🎨 Selected conversation:', this.selectedConversation);
 
+        if (!container) {
+            console.error('❌ messages-content container not found!');
+            return;
+        }
+
+        if (!this.selectedConversation) {
+            console.error('❌ No selected conversation!');
+            return;
+        }
+
+        console.log('✅ Rendering chat interface for:', this.selectedConversation.nickname);
+
+        // Render the full chat interface in the main area
         container.innerHTML = `
             <div class="conversation-header">
-                <img src="${this.selectedConversation.avatarURL || '/static/images/default-avatar.png'}" 
-                     alt="${window.utils.escapeHtml(this.selectedConversation.nickname)}'s avatar" 
+                <img src="${this.selectedConversation.avatarURL || '/static/images/default-avatar.png'}"
+                     alt="${window.utils.escapeHtml(this.selectedConversation.nickname)}'s avatar"
                      class="conversation-avatar">
                 <div class="conversation-info">
                     <h3>${window.utils.escapeHtml(this.selectedConversation.nickname)}</h3>
                     <span class="user-status">Online</span>
                 </div>
             </div>
-            
+
             <div class="messages-list" id="messages-list">
                 ${this.renderMessagesList()}
             </div>
-            
+
             <div class="message-input-container">
                 <form id="message-form" class="message-form">
                     <input type="text" id="message-input" placeholder="Type a message..." required>
@@ -186,8 +221,10 @@ window.MessagesPage = {
             </div>
         `;
 
+        console.log('✅ Chat HTML rendered, binding events...');
         this.bindMessageEvents();
         this.scrollToBottom();
+        console.log('✅ Chat interface fully rendered');
     },
 
     renderMessagesList() {
@@ -426,5 +463,50 @@ window.MessagesPage = {
     // Method to be called from sidebar component
     selectUser(user) {
         this.startNewConversation(user);
+    },
+
+    // Test method to check if chat display works
+    bindTestButton() {
+        const testBtn = document.getElementById('test-chat-btn');
+        if (testBtn) {
+            testBtn.addEventListener('click', () => {
+                console.log('🧪 Test button clicked - creating test conversation');
+
+                // Create a test conversation
+                const testConversation = {
+                    userID: 'test-user-123',
+                    nickname: 'Test User',
+                    firstName: 'Test',
+                    lastName: 'User',
+                    avatarURL: '/static/images/default-avatar.png',
+                    lastMessage: 'Test message',
+                    lastMessageTime: new Date().toISOString(),
+                    unreadCount: 0
+                };
+
+                // Set test messages
+                this.messages = [
+                    {
+                        id: 'msg1',
+                        senderID: 'test-user-123',
+                        receiverID: window.forumApp.currentUser?.id || 'current-user',
+                        content: 'Hello! This is a test message.',
+                        createdAt: new Date(Date.now() - 60000),
+                        senderName: 'Test User'
+                    },
+                    {
+                        id: 'msg2',
+                        senderID: window.forumApp.currentUser?.id || 'current-user',
+                        receiverID: 'test-user-123',
+                        content: 'Hi there! This is my reply.',
+                        createdAt: new Date(),
+                        senderName: 'You'
+                    }
+                ];
+
+                // Select the test conversation
+                this.selectConversation(testConversation);
+            });
+        }
     }
 };

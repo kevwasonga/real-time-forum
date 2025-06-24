@@ -385,6 +385,18 @@ body {
     border-radius: 50%;
 }
 
+/* No online users message */
+.no-online-users {
+    text-align: center;
+    color: var(--text-muted);
+    padding: var(--spacing-md);
+}
+
+.no-online-users p {
+    margin: 0;
+    font-style: italic;
+}
+
 /* Chat Panel */
 .chat-panel {
     position: fixed;

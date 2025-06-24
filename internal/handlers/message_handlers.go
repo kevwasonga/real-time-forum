@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -108,21 +110,22 @@ func createMessageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Insert message
-	result, err := database.DB.Exec(`
-		INSERT INTO messages (sender_id, receiver_id, content, created_at)
-		VALUES (?, ?, ?, ?)
-	`, user.ID, req.ReceiverID, req.Content, time.Now())
+	// Generate message ID
+	messageID := generateMessageID()
+
+	// Insert message into private_messages table
+	_, err = database.DB.Exec(`
+		INSERT INTO private_messages (id, sender_id, receiver_id, content, created_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`, messageID, user.ID, req.ReceiverID, req.Content)
 
 	if err != nil {
 		RenderError(w, "Failed to create message", http.StatusInternalServerError)
 		return
 	}
 
-	messageID, _ := result.LastInsertId()
-
 	// Get the created message
-	message, err := getMessageByID(int(messageID))
+	message, err := getMessageByID(messageID)
 	if err != nil {
 		RenderError(w, "Failed to retrieve created message", http.StatusInternalServerError)
 		return
@@ -219,17 +222,17 @@ func getUserConversations(userID string) ([]models.Conversation, error) {
 
 // getMessagesBetweenUsers gets messages between two users
 func getMessagesBetweenUsers(userID1, userID2 string) ([]models.Message, error) {
-	// Get last 10 messages by default, ordered by creation time
+	// Get last 10 messages by default, ordered by creation time (most recent first, then reverse)
 	rows, err := database.DB.Query(`
-		SELECT m.id, m.sender_id, m.receiver_id, m.content, m.created_at, m.read_at,
+		SELECT pm.id, pm.sender_id, pm.receiver_id, pm.content, pm.created_at, pm.read_at,
 		       sender.nickname as sender_nickname,
 		       receiver.nickname as receiver_nickname
-		FROM messages m
-		JOIN users sender ON m.sender_id = sender.id
-		JOIN users receiver ON m.receiver_id = receiver.id
-		WHERE (m.sender_id = ? AND m.receiver_id = ?) 
-		   OR (m.sender_id = ? AND m.receiver_id = ?)
-		ORDER BY m.created_at DESC
+		FROM private_messages pm
+		JOIN users sender ON pm.sender_id = sender.id
+		JOIN users receiver ON pm.receiver_id = receiver.id
+		WHERE (pm.sender_id = ? AND pm.receiver_id = ?)
+		   OR (pm.sender_id = ? AND pm.receiver_id = ?)
+		ORDER BY pm.created_at DESC
 		LIMIT 10
 	`, userID1, userID2, userID2, userID1)
 
@@ -241,19 +244,46 @@ func getMessagesBetweenUsers(userID1, userID2 string) ([]models.Message, error) 
 	var messages []models.Message
 	for rows.Next() {
 		var message models.Message
+		var createdAtStr string
+		var readAtStr *string
+
 		err := rows.Scan(
 			&message.ID,
 			&message.SenderID,
 			&message.ReceiverID,
 			&message.Content,
-			&message.CreatedAt,
-			&message.ReadAt,
+			&createdAtStr,
+			&readAtStr,
 			&message.SenderName,
 			&message.ReceiverName,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// Parse timestamps
+		if createdAtStr != "" {
+			parsedTime, err := time.Parse("2006-01-02T15:04:05Z", createdAtStr)
+			if err != nil {
+				parsedTime, err = time.Parse("2006-01-02 15:04:05", createdAtStr)
+				if err != nil {
+					parsedTime = time.Now()
+				}
+			}
+			message.CreatedAt = parsedTime
+		}
+
+		if readAtStr != nil && *readAtStr != "" {
+			parsedTime, err := time.Parse("2006-01-02T15:04:05Z", *readAtStr)
+			if err != nil {
+				parsedTime, err = time.Parse("2006-01-02 15:04:05", *readAtStr)
+				if err != nil {
+					parsedTime = time.Now()
+				}
+			}
+			message.ReadAt = &parsedTime
+		}
+
 		messages = append(messages, message)
 	}
 
@@ -266,23 +296,26 @@ func getMessagesBetweenUsers(userID1, userID2 string) ([]models.Message, error) 
 }
 
 // getMessageByID gets a message by ID
-func getMessageByID(messageID int) (*models.Message, error) {
+func getMessageByID(messageID string) (*models.Message, error) {
 	var message models.Message
+	var createdAtStr string
+	var readAtStr *string
+
 	err := database.DB.QueryRow(`
-		SELECT m.id, m.sender_id, m.receiver_id, m.content, m.created_at, m.read_at,
+		SELECT pm.id, pm.sender_id, pm.receiver_id, pm.content, pm.created_at, pm.read_at,
 		       sender.nickname as sender_nickname,
 		       receiver.nickname as receiver_nickname
-		FROM messages m
-		JOIN users sender ON m.sender_id = sender.id
-		JOIN users receiver ON m.receiver_id = receiver.id
-		WHERE m.id = ?
+		FROM private_messages pm
+		JOIN users sender ON pm.sender_id = sender.id
+		JOIN users receiver ON pm.receiver_id = receiver.id
+		WHERE pm.id = ?
 	`, messageID).Scan(
 		&message.ID,
 		&message.SenderID,
 		&message.ReceiverID,
 		&message.Content,
-		&message.CreatedAt,
-		&message.ReadAt,
+		&createdAtStr,
+		&readAtStr,
 		&message.SenderName,
 		&message.ReceiverName,
 	)
@@ -291,16 +324,39 @@ func getMessageByID(messageID int) (*models.Message, error) {
 		return nil, err
 	}
 
+	// Parse timestamps
+	if createdAtStr != "" {
+		parsedTime, err := time.Parse("2006-01-02T15:04:05Z", createdAtStr)
+		if err != nil {
+			parsedTime, err = time.Parse("2006-01-02 15:04:05", createdAtStr)
+			if err != nil {
+				parsedTime = time.Now()
+			}
+		}
+		message.CreatedAt = parsedTime
+	}
+
+	if readAtStr != nil && *readAtStr != "" {
+		parsedTime, err := time.Parse("2006-01-02T15:04:05Z", *readAtStr)
+		if err != nil {
+			parsedTime, err = time.Parse("2006-01-02 15:04:05", *readAtStr)
+			if err != nil {
+				parsedTime = time.Now()
+			}
+		}
+		message.ReadAt = &parsedTime
+	}
+
 	return &message, nil
 }
 
 // markMessagesAsRead marks messages as read
 func markMessagesAsRead(receiverID, senderID string) error {
 	_, err := database.DB.Exec(`
-		UPDATE messages 
-		SET read_at = ? 
+		UPDATE private_messages
+		SET read_at = CURRENT_TIMESTAMP
 		WHERE receiver_id = ? AND sender_id = ? AND read_at IS NULL
-	`, time.Now(), receiverID, senderID)
+	`, receiverID, senderID)
 
 	return err
 }
@@ -418,4 +474,9 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RenderSuccess(w, "Users retrieved successfully", users)
+}
+
+// generateMessageID generates a unique message ID
+func generateMessageID() string {
+	return fmt.Sprintf("msg_%d_%d", time.Now().UnixNano(), rand.Intn(10000))
 }
