@@ -77,6 +77,10 @@ func setupRoutes() {
 	http.HandleFunc("/api/friends", handlers.FriendsHandler)
 	http.HandleFunc("/api/online-users", handlers.OnlineUsersHandler)
 
+	// Avatar upload routes
+	http.HandleFunc("/api/upload/avatar", handlers.AvatarUploadHandler)
+	http.HandleFunc("/api/profile/avatar", handlers.AvatarUpdateHandler)
+
 	// OAuth routes
 	http.HandleFunc("/auth/google/login", handlers.GoogleLoginHandler)
 	http.HandleFunc("/auth/google/callback", handlers.GoogleCallbackHandler)
