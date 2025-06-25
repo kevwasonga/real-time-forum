@@ -306,6 +306,7 @@ window.PostsPage = {
                         <div class="no-comments">
                             <p>No comments yet. Be the first to comment!</p>
                         </div>
+                        ${this.renderCommentForm(postId)}
                     `;
                 } else {
                     commentsSection.innerHTML = `
@@ -315,8 +316,12 @@ window.PostsPage = {
                         <div class="comments-list">
                             ${comments.map(comment => this.renderComment(comment)).join('')}
                         </div>
+                        ${this.renderCommentForm(postId)}
                     `;
                 }
+
+                // Bind comment form events after rendering
+                this.bindCommentFormEvents();
             } else {
                 console.error('❌ API response failed:', response);
                 commentsSection.innerHTML = '<div class="comments-error">Failed to load comments</div>';
@@ -345,5 +350,132 @@ window.PostsPage = {
                 </div>
             </div>
         `;
+    },
+
+    renderCommentForm(postId) {
+        // Check if user is logged in
+        if (!window.forumApp.currentUser) {
+            return `
+                <div class="comment-form-container">
+                    <div class="login-prompt">
+                        <p>Please <a href="/login" data-route="/login">login</a> to add a comment.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="comment-form-container">
+                <form class="comment-form" data-post-id="${postId}">
+                    <div class="comment-input-group">
+                        <img src="${window.forumApp.currentUser.avatarUrl || '/static/images/default-avatar.png'}"
+                             alt="Your avatar"
+                             class="comment-form-avatar">
+                        <textarea
+                            class="comment-textarea"
+                            placeholder="Write a comment..."
+                            rows="2"
+                            maxlength="500"
+                            required></textarea>
+                    </div>
+                    <div class="comment-form-actions">
+                        <span class="comment-char-count">0/500</span>
+                        <button type="submit" class="btn btn-primary btn-sm">Post Comment</button>
+                    </div>
+                </form>
+            </div>
+        `;
+    },
+
+    async handleCommentSubmit(event) {
+        event.preventDefault();
+
+        const form = event.target;
+        const postId = form.dataset.postId;
+        const textarea = form.querySelector('.comment-textarea');
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const content = textarea.value.trim();
+
+        if (!content) {
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error('Please enter a comment');
+            }
+            return;
+        }
+
+        try {
+            // Show loading state
+            window.utils.setLoading(submitBtn, true, 'Posting...');
+            textarea.disabled = true;
+
+            // Submit comment
+            const response = await window.api.createComment({
+                postId: parseInt(postId),
+                content: content
+            });
+
+            if (response.success) {
+                // Clear form
+                textarea.value = '';
+                this.updateCharCount(textarea);
+
+                // Reload comments to show the new comment
+                await this.loadCommentsForPost(postId);
+
+                // Update comment count in the toggle button
+                const toggleBtn = document.querySelector(`[data-post-id="${postId}"].comment-toggle-btn`);
+                if (toggleBtn) {
+                    const currentCount = parseInt(toggleBtn.textContent.match(/\d+/)[0]) || 0;
+                    toggleBtn.innerHTML = `💬 ${currentCount + 1}`;
+                }
+
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.success('Comment posted successfully!');
+                }
+            } else {
+                throw new Error(response.message || 'Failed to post comment');
+            }
+        } catch (error) {
+            console.error('Failed to post comment:', error);
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error(error.message || 'Failed to post comment');
+            }
+        } finally {
+            // Reset loading state
+            window.utils.setLoading(submitBtn, false);
+            textarea.disabled = false;
+            textarea.focus();
+        }
+    },
+
+    updateCharCount(textarea) {
+        const charCount = textarea.value.length;
+        const charCountElement = textarea.closest('.comment-form').querySelector('.comment-char-count');
+        if (charCountElement) {
+            charCountElement.textContent = `${charCount}/500`;
+            charCountElement.style.color = charCount > 450 ? 'var(--error-color)' : 'var(--text-muted)';
+        }
+    },
+
+    bindCommentFormEvents() {
+        // Bind comment form submissions
+        const commentForms = document.querySelectorAll('.comment-form');
+        commentForms.forEach(form => {
+            form.addEventListener('submit', this.handleCommentSubmit.bind(this));
+        });
+
+        // Bind character count updates
+        const textareas = document.querySelectorAll('.comment-textarea');
+        textareas.forEach(textarea => {
+            textarea.addEventListener('input', () => {
+                this.updateCharCount(textarea);
+            });
+
+            // Auto-resize textarea
+            textarea.addEventListener('input', () => {
+                textarea.style.height = 'auto';
+                textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+            });
+        });
     }
 };
