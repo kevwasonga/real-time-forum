@@ -1233,47 +1233,26 @@ window.ProfilePage = {
             try {
                 window.utils.setLoading(saveBtn, true, 'Saving...');
 
-                let newAvatarUrl;
+                let response;
 
                 if (selectedFile) {
-                    console.log('Processing custom file...');
-                    // For now, use a data URL for preview (temporary solution)
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        newAvatarUrl = e.target.result;
-                        console.log('File converted to data URL');
+                    console.log('Uploading custom file...');
+                    // Upload file to backend
+                    const formData = new FormData();
+                    formData.append('avatar', selectedFile);
 
-                        // Update user data
-                        this.currentUser.avatarUrl = newAvatarUrl;
-                        if (window.auth.currentUser) {
-                            window.auth.currentUser.avatarUrl = newAvatarUrl;
-                        }
-                        if (window.forumApp.currentUser) {
-                            window.forumApp.currentUser.avatarUrl = newAvatarUrl;
-                        }
-
-                        // Update UI
-                        this.updateAvatarInUI(newAvatarUrl);
-
-                        if (window.forumApp.notificationComponent) {
-                            window.forumApp.notificationComponent.success('Avatar updated! (Note: This is temporary until backend is implemented)');
-                        } else {
-                            alert('Avatar updated successfully!');
-                        }
-
-                        window.utils.setLoading(saveBtn, false);
-                        closeModal();
-                    };
-                    reader.readAsDataURL(selectedFile);
-                    return;
+                    response = await window.api.uploadAvatar(formData);
 
                 } else if (selectedDefaultAvatar) {
                     console.log('Using default avatar:', selectedDefaultAvatar);
-                    newAvatarUrl = selectedDefaultAvatar;
+                    // Update avatar URL in backend
+                    response = await window.api.updateAvatar({ avatarUrl: selectedDefaultAvatar });
                 }
 
-                if (newAvatarUrl) {
-                    console.log('Updating UI with new avatar URL:', newAvatarUrl);
+                if (response && response.success) {
+                    // Get the new avatar URL from response
+                    const newAvatarUrl = response.data.avatarURL || response.data.avatarUrl || selectedDefaultAvatar;
+
                     // Update user data
                     this.currentUser.avatarUrl = newAvatarUrl;
                     if (window.auth.currentUser) {
@@ -1287,12 +1266,14 @@ window.ProfilePage = {
                     this.updateAvatarInUI(newAvatarUrl);
 
                     if (window.forumApp.notificationComponent) {
-                        window.forumApp.notificationComponent.success('Avatar updated! (Note: This is temporary until backend is implemented)');
+                        window.forumApp.notificationComponent.success('Avatar updated successfully!');
                     } else {
                         alert('Avatar updated successfully!');
                     }
 
                     closeModal();
+                } else {
+                    throw new Error(response?.message || 'Failed to update avatar');
                 }
 
             } catch (error) {
