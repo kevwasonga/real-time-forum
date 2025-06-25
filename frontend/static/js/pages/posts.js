@@ -165,12 +165,15 @@ window.PostsPage = {
                         </button>
                     </div>
 
-                    <!-- Comments section (initially hidden) -->
-                    <div class="comments-section" id="comments-${post.id}" style="display: none;">
-                        <div class="comments-loading">Loading comments...</div>
-                    </div>
                 </div>
             </article>
+
+            <!-- Comments section as separate container -->
+            <div class="post-comments-container" id="comments-container-${post.id}">
+                <div class="comments-section" id="comments-${post.id}" style="display: none;">
+                    <div class="comments-loading">Loading comments...</div>
+                </div>
+            </div>
         `).join('');
 
         // Bind like/dislike events
@@ -246,12 +249,18 @@ window.PostsPage = {
         const isVisible = commentsSection.style.display !== 'none';
 
         if (isVisible) {
-            // Hide comments
-            commentsSection.style.display = 'none';
+            // Hide comments with animation
+            commentsSection.style.opacity = '0';
+            commentsSection.style.transform = 'translateY(-10px)';
+            setTimeout(() => {
+                commentsSection.style.display = 'none';
+            }, 200);
             button.classList.remove('active');
         } else {
             // Show comments and load them if not already loaded
             commentsSection.style.display = 'block';
+            commentsSection.style.opacity = '0';
+            commentsSection.style.transform = 'translateY(-10px)';
             button.classList.add('active');
 
             // Load comments if not already loaded
@@ -259,6 +268,18 @@ window.PostsPage = {
                 await this.loadCommentsForPost(postId);
                 commentsSection.dataset.loaded = 'true';
             }
+
+            // Animate in
+            setTimeout(() => {
+                commentsSection.style.opacity = '1';
+                commentsSection.style.transform = 'translateY(0)';
+
+                // Smooth scroll to comments section
+                commentsSection.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest'
+                });
+            }, 50);
         }
     },
 

@@ -1218,11 +1218,21 @@ body {
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
     transition: all var(--transition-fast);
+    margin-bottom: var(--spacing-md);
+    position: relative;
 }
 
 .post-card:hover {
     border-color: var(--primary-color);
     box-shadow: var(--shadow-md);
+}
+
+/* When comments are active, style the post differently */
+.post-card:has(+ .post-comments-container .comments-section[style*="block"]) {
+    border-bottom-left-radius: var(--radius-sm);
+    border-bottom-right-radius: var(--radius-sm);
+    margin-bottom: 0;
+    border-bottom-color: var(--primary-color);
 }
 
 .post-header {
@@ -1332,84 +1342,116 @@ body {
     color: var(--text-secondary);
     cursor: pointer;
     padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     transition: all var(--transition-fast);
     font-size: 0.875rem;
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
+    position: relative;
+    font-weight: 500;
 }
 
 .comment-toggle-btn:hover {
-    color: var(--text-primary);
-    background-color: var(--bg-tertiary);
+    color: var(--primary-color);
+    background-color: rgba(59, 130, 246, 0.1);
+    transform: translateY(-1px);
 }
 
 .comment-toggle-btn.active {
     color: var(--primary-color);
-    background-color: rgba(26, 115, 232, 0.1);
+    background-color: rgba(59, 130, 246, 0.1);
 }
 
-/* Comments Section */
+/* Post Comments Container - Simple Layout */
+.post-comments-container {
+    margin: var(--spacing-md) 0 var(--spacing-xl) 0;
+}
+
+/* Comments Section - Simple and Clean */
 .comments-section {
-    margin-top: var(--spacing-md);
-    border-top: 1px solid var(--border-color);
-    padding-top: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: all 0.3s ease-out;
+    transform-origin: top;
+    max-width: 100%;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .comments-loading,
 .comments-error {
     text-align: center;
     color: var(--text-muted);
-    padding: var(--spacing-md);
+    padding: var(--spacing-xl);
     font-style: italic;
+    background: var(--bg-primary);
 }
 
 .comments-error {
     color: var(--error-color);
+    background: rgba(239, 68, 68, 0.1);
 }
 
 .comments-header {
-    margin-bottom: var(--spacing-md);
-    padding-bottom: var(--spacing-sm);
+    background: var(--bg-tertiary);
     border-bottom: 1px solid var(--border-color);
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin: 0;
 }
 
 .comments-header h4 {
     color: var(--text-primary);
     margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
+    font-size: 0.9rem;
+    font-weight: 500;
 }
 
 .comments-list {
+    padding: var(--spacing-md);
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-sm);
+    max-height: 400px;
+    overflow-y: auto;
 }
 
 .comment-item {
-    background-color: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-md);
-    transition: all var(--transition-fast);
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding: var(--spacing-sm);
+    transition: background-color var(--transition-fast);
+}
+
+.comment-item:last-child {
+    border-bottom: none;
 }
 
 .comment-item:hover {
-    border-color: var(--border-hover);
+    background: var(--bg-tertiary);
 }
 
 .comment-header {
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
 }
 
 .comment-avatar {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
@@ -1418,25 +1460,26 @@ body {
 .comment-meta {
     flex: 1;
     display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
+    align-items: center;
+    gap: var(--spacing-sm);
 }
 
 .comment-author {
     color: var(--text-primary);
     font-weight: 500;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 .comment-time {
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: 0.75rem;
 }
 
 .comment-content {
     color: var(--text-secondary);
-    line-height: 1.5;
-    font-size: 0.9rem;
+    line-height: 1.4;
+    font-size: 0.85rem;
+    margin-left: calc(28px + var(--spacing-sm));
 }
 
 .no-comments {
@@ -1444,9 +1487,7 @@ body {
     color: var(--text-muted);
     padding: var(--spacing-lg);
     font-style: italic;
-    background-color: var(--bg-tertiary);
-    border: 1px dashed var(--border-color);
-    border-radius: var(--radius-md);
+    font-size: 0.85rem;
 }
 
 .read-more-btn {
