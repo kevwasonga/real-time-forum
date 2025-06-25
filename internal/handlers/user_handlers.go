@@ -478,9 +478,15 @@ func AvatarUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get current working directory for debugging
+	wd, _ := os.Getwd()
+	log.Printf("📂 Current working directory: %s", wd)
+
 	// Create uploads directory if it doesn't exist
 	uploadsDir := "frontend/static/uploads/avatars"
+	log.Printf("📁 Creating uploads directory: %s", uploadsDir)
 	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+		log.Printf("❌ Failed to create upload directory: %v", err)
 		RenderError(w, "Failed to create upload directory", http.StatusInternalServerError)
 		return
 	}
@@ -489,10 +495,12 @@ func AvatarUploadHandler(w http.ResponseWriter, r *http.Request) {
 	ext := filepath.Ext(header.Filename)
 	filename := user.ID + "_" + time.Now().Format("20060102_150405") + ext
 	filePath := filepath.Join(uploadsDir, filename)
+	log.Printf("📄 Saving file to: %s", filePath)
 
 	// Save file
 	dst, err := os.Create(filePath)
 	if err != nil {
+		log.Printf("❌ Failed to create file: %v", err)
 		RenderError(w, "Failed to create file", http.StatusInternalServerError)
 		return
 	}
@@ -500,21 +508,40 @@ func AvatarUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	_, err = io.Copy(dst, file)
 	if err != nil {
+		log.Printf("❌ Failed to copy file: %v", err)
 		RenderError(w, "Failed to save file", http.StatusInternalServerError)
 		return
 	}
 
-	// Update user avatar URL in database
+	// Verify file was created
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		log.Printf("❌ File was not created: %s", filePath)
+		RenderError(w, "File was not saved properly", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("✅ File created successfully: %s", filePath)
+
+	// Update user avatar URL in database (use forward slashes for web URLs)
 	avatarURL := "/static/uploads/avatars/" + filename
+	log.Printf("🔗 Avatar URL: %s", avatarURL)
 	_, err = database.DB.Exec(`
 		UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?
 	`, avatarURL, time.Now(), user.ID)
 
 	if err != nil {
+		log.Printf("❌ Failed to update database: %v", err)
 		RenderError(w, "Failed to update avatar", http.StatusInternalServerError)
 		return
 	}
 
+	// Test if file is accessible (optional debug step)
+	if _, err := os.Stat(filePath); err == nil {
+		log.Printf("✅ File exists and is accessible: %s", filePath)
+	} else {
+		log.Printf("⚠️ File may not be accessible: %v", err)
+	}
+
+	log.Printf("✅ Avatar uploaded successfully for user %s: %s", user.ID, avatarURL)
 	RenderSuccess(w, "Avatar uploaded successfully", map[string]string{
 		"avatarURL": avatarURL,
 	})

@@ -26,3 +26,6 @@ Thumbs.db
 # Upload directories
 uploads/
 temp/
+
+##Executable
+forum.exe
