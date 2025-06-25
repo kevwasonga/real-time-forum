@@ -68,6 +68,17 @@ func setupRoutes() {
 	http.HandleFunc("/api/posts", handlers.PostsHandler)
 	http.HandleFunc("/api/posts/", handlers.PostHandler)
 	http.HandleFunc("/api/comment", handlers.CommentHandler)
+	http.HandleFunc("/api/comments/", handlers.CommentsHandler)
+	// Also handle without trailing slash for better compatibility
+	http.HandleFunc("/api/comments", handlers.CommentsHandler)
+
+	// Test endpoint
+	http.HandleFunc("/api/test", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🧪 Test endpoint called")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"success": true, "message": "Test endpoint working"}`))
+	})
 	http.HandleFunc("/api/like", handlers.LikeHandler)
 	http.HandleFunc("/api/messages", handlers.MessagesHandler)
 	http.HandleFunc("/api/messages/", handlers.MessageHandler)

@@ -18,8 +18,15 @@ window.api = {
         };
 
         try {
+            console.log('📡 Making request to:', url);
+            console.log('📡 Request config:', config);
+
             const response = await fetch(url, config);
+            console.log('📡 Response status:', response.status);
+            console.log('📡 Response ok:', response.ok);
+
             const data = await response.json();
+            console.log('📡 Response data:', data);
 
             if (!response.ok) {
                 throw new Error(data.error || `HTTP error! status: ${response.status}`);
@@ -27,7 +34,7 @@ window.api = {
 
             return data;
         } catch (error) {
-            console.error('API request failed:', error);
+            console.error('📡 API request failed:', error);
             throw error;
         }
     },
@@ -116,6 +123,13 @@ window.api = {
     },
 
     // Comments endpoints
+    async getComments(postId) {
+        console.log('📡 API: Getting comments for post:', postId);
+        const url = `/comments/${postId}`;
+        console.log('📡 API: Request URL:', url);
+        return this.get(url);
+    },
+
     async createComment(commentData) {
         return this.post('/comment', commentData);
     },

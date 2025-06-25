@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,13 +16,28 @@ import (
 
 // PostHandler handles individual post operations
 func PostHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("🚀 PostHandler START - URL: %s", r.URL.Path)
+
 	if r.Method != http.MethodGet {
+		log.Printf("❌ Method not allowed: %s", r.Method)
 		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Extract post ID from URL path
+	log.Printf("📝 PostHandler called with URL: %s", r.URL.Path)
+
+	// Extract path after /api/posts/
 	path := strings.TrimPrefix(r.URL.Path, "/api/posts/")
+	log.Printf("📝 Extracted path: %s", path)
+
+	// Check if this is a comments request
+	if strings.Contains(path, "/comments") {
+		log.Printf("📝 Detected comments request, delegating to handleCommentsRequest")
+		handleCommentsRequest(w, r, path)
+		return
+	}
+
+	// Handle regular post request
 	postID, err := strconv.Atoi(path)
 	if err != nil {
 		RenderError(w, "Invalid post ID", http.StatusBadRequest)
@@ -102,6 +119,104 @@ func CommentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RenderSuccess(w, "Comment created successfully", comment)
+}
+
+// handleCommentsRequest handles requests for post comments
+func handleCommentsRequest(w http.ResponseWriter, r *http.Request, path string) {
+	log.Printf("📝 handleCommentsRequest called with path: %s", path)
+
+	// Extract post ID from path like "123/comments"
+	parts := strings.Split(path, "/")
+	log.Printf("📝 Path parts: %v", parts)
+
+	if len(parts) < 2 || parts[1] != "comments" {
+		log.Printf("❌ Invalid comments request - parts: %v", parts)
+		RenderError(w, "Invalid comments request", http.StatusBadRequest)
+		return
+	}
+
+	postID, err := strconv.Atoi(parts[0])
+	if err != nil {
+		log.Printf("❌ Invalid post ID: %s, error: %v", parts[0], err)
+		RenderError(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("📝 Getting comments for post ID: %d", postID)
+
+	// Get comments for the post
+	comments, err := getPostComments(postID)
+	if err != nil {
+		log.Printf("❌ Failed to get comments for post %d: %v", postID, err)
+		RenderError(w, "Failed to retrieve comments", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("✅ Found %d comments for post %d", len(comments), postID)
+
+	// Check if current user liked/disliked comments
+	user := auth.GetUserFromSession(r)
+	if user != nil {
+		for i := range comments {
+			commentLike, err := getUserLikeStatus(user.ID, nil, &comments[i].ID)
+			if err == nil && commentLike != nil {
+				comments[i].UserLiked = commentLike.IsLike
+				comments[i].UserDisliked = !commentLike.IsLike
+			}
+		}
+	}
+
+	log.Printf("✅ Returning %d comments for post %d", len(comments), postID)
+	RenderSuccess(w, "Comments retrieved successfully", comments)
+}
+
+// CommentsHandler handles comments requests with cleaner URL structure
+func CommentsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	log.Printf("🚀 CommentsHandler START - URL: %s", r.URL.Path)
+	fmt.Printf("🚀 CommentsHandler START - URL: %s\n", r.URL.Path)
+
+	// Extract post ID from URL like /api/comments/123
+	path := strings.TrimPrefix(r.URL.Path, "/api/comments/")
+	log.Printf("📝 Extracted path: %s", path)
+
+	postID, err := strconv.Atoi(path)
+	if err != nil {
+		log.Printf("❌ Invalid post ID: %s, error: %v", path, err)
+		RenderError(w, "Invalid post ID", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("📝 Getting comments for post ID: %d", postID)
+
+	// Get comments for the post
+	comments, err := getPostComments(postID)
+	if err != nil {
+		log.Printf("❌ Failed to get comments for post %d: %v", postID, err)
+		RenderError(w, "Failed to retrieve comments", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("✅ Found %d comments for post %d", len(comments), postID)
+
+	// Check if current user liked/disliked comments
+	user := auth.GetUserFromSession(r)
+	if user != nil {
+		for i := range comments {
+			commentLike, err := getUserLikeStatus(user.ID, nil, &comments[i].ID)
+			if err == nil && commentLike != nil {
+				comments[i].UserLiked = commentLike.IsLike
+				comments[i].UserDisliked = !commentLike.IsLike
+			}
+		}
+	}
+
+	log.Printf("✅ Returning %d comments for post %d", len(comments), postID)
+	RenderSuccess(w, "Comments retrieved successfully", comments)
 }
 
 // LikeHandler handles like/dislike operations

@@ -158,12 +158,17 @@ window.PostsPage = {
                                 data-post-id="${post.id}" data-action="dislike">
                             👎 ${post.dislikeCount}
                         </button>
-                        <span class="stat-item">💬 ${post.commentCount}</span>
+                        <button class="stat-btn comment-toggle-btn"
+                                data-post-id="${post.id}"
+                                title="Toggle comments">
+                            💬 ${post.commentCount}
+                        </button>
                     </div>
-                    
-                    <a href="/post/${post.id}" data-route="/post/${post.id}" class="read-more-btn">
-                        Read More
-                    </a>
+
+                    <!-- Comments section (initially hidden) -->
+                    <div class="comments-section" id="comments-${post.id}" style="display: none;">
+                        <div class="comments-loading">Loading comments...</div>
+                    </div>
                 </div>
             </article>
         `).join('');
@@ -176,6 +181,12 @@ window.PostsPage = {
         const likeButtons = document.querySelectorAll('.like-btn, .dislike-btn');
         likeButtons.forEach(button => {
             button.addEventListener('click', this.handleLikeDislike.bind(this));
+        });
+
+        // Bind comment toggle buttons
+        const commentToggleButtons = document.querySelectorAll('.comment-toggle-btn');
+        commentToggleButtons.forEach(button => {
+            button.addEventListener('click', this.handleCommentToggle.bind(this));
         });
     },
 
@@ -216,5 +227,102 @@ window.PostsPage = {
                 window.forumApp.notificationComponent.error('Failed to update like status');
             }
         }
+    },
+
+    async handleCommentToggle(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const postId = button.dataset.postId;
+        const commentsSection = document.getElementById(`comments-${postId}`);
+
+        if (!commentsSection) {
+            console.error('Comments section not found for post:', postId);
+            return;
+        }
+
+        // Toggle visibility
+        const isVisible = commentsSection.style.display !== 'none';
+
+        if (isVisible) {
+            // Hide comments
+            commentsSection.style.display = 'none';
+            button.classList.remove('active');
+        } else {
+            // Show comments and load them if not already loaded
+            commentsSection.style.display = 'block';
+            button.classList.add('active');
+
+            // Load comments if not already loaded
+            if (!commentsSection.dataset.loaded) {
+                await this.loadCommentsForPost(postId);
+                commentsSection.dataset.loaded = 'true';
+            }
+        }
+    },
+
+    async loadCommentsForPost(postId) {
+        const commentsSection = document.getElementById(`comments-${postId}`);
+        if (!commentsSection) return;
+
+        try {
+            console.log('🔄 Loading comments for post:', postId);
+
+            // Show loading state
+            commentsSection.innerHTML = '<div class="comments-loading">Loading comments...</div>';
+
+            // Fetch comments from API
+            const response = await window.api.getComments(postId);
+            console.log('📡 Comments API response:', response);
+
+            if (response.success && response.data) {
+                const comments = response.data;
+                console.log('✅ Loaded comments:', comments);
+
+                if (comments.length === 0) {
+                    commentsSection.innerHTML = `
+                        <div class="no-comments">
+                            <p>No comments yet. Be the first to comment!</p>
+                        </div>
+                    `;
+                } else {
+                    commentsSection.innerHTML = `
+                        <div class="comments-header">
+                            <h4>Comments (${comments.length})</h4>
+                        </div>
+                        <div class="comments-list">
+                            ${comments.map(comment => this.renderComment(comment)).join('')}
+                        </div>
+                    `;
+                }
+            } else {
+                console.error('❌ API response failed:', response);
+                commentsSection.innerHTML = '<div class="comments-error">Failed to load comments</div>';
+            }
+        } catch (error) {
+            console.error('❌ Failed to load comments:', error);
+            commentsSection.innerHTML = '<div class="comments-error">Failed to load comments</div>';
+        }
+    },
+
+    renderComment(comment) {
+        const timeAgo = window.utils.formatDate(comment.createdAt);
+        return `
+            <div class="comment-item">
+                <div class="comment-header">
+                    <img src="${comment.authorAvatar || '/static/images/default-avatar.png'}"
+                         alt="${window.utils.escapeHtml(comment.author)}'s avatar"
+                         class="comment-avatar">
+                    <div class="comment-meta">
+                        <span class="comment-author">${window.utils.escapeHtml(comment.author)}</span>
+                        <span class="comment-time">${timeAgo}</span>
+                    </div>
+                </div>
+                <div class="comment-content">
+                    ${window.utils.escapeHtml(comment.content)}
+                </div>
+            </div>
+        `;
     }
 };
