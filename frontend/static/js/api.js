@@ -138,6 +138,14 @@ window.api = {
         return this.post('/like', { commentId, isLike });
     },
 
+    async updateComment(commentId, data) {
+        return this.put(`/comment/${commentId}`, data);
+    },
+
+    async deleteComment(commentId) {
+        return this.delete(`/comment/${commentId}`);
+    },
+
     // Messages endpoints
     async getConversations() {
         return this.get('/messages');

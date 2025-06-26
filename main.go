@@ -67,7 +67,15 @@ func setupRoutes() {
 	http.HandleFunc("/api/user", handlers.CurrentUserHandler)
 	http.HandleFunc("/api/posts", handlers.PostsHandler)
 	http.HandleFunc("/api/posts/", handlers.PostHandler)
-	http.HandleFunc("/api/comment", handlers.CommentHandler)
+	// Comment routes - use a custom handler to catch all comment requests
+	http.HandleFunc("/api/comment", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🔀 Comment router - Method: %s, URL: %s", r.Method, r.URL.Path)
+		handlers.CommentHandler(w, r)
+	})
+	http.HandleFunc("/api/comment/", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🔀 Comment router with slash - Method: %s, URL: %s", r.Method, r.URL.Path)
+		handlers.CommentHandler(w, r)
+	})
 	http.HandleFunc("/api/comments/", handlers.CommentsHandler)
 	// Also handle without trailing slash for better compatibility
 	http.HandleFunc("/api/comments", handlers.CommentsHandler)

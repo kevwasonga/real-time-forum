@@ -73,12 +73,39 @@ func PostHandler(w http.ResponseWriter, r *http.Request) {
 	RenderSuccess(w, "Post retrieved successfully", post)
 }
 
-// CommentHandler handles comment creation
+// CommentHandler handles comment operations (create, update, delete)
 func CommentHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
+	log.Printf("🚀 CommentHandler - Method: %s, URL: %s", r.Method, r.URL.Path)
+
+	// Check if this is a specific comment operation (has ID in path)
+	path := strings.TrimPrefix(r.URL.Path, "/api/comment")
+	log.Printf("📝 Extracted path after /api/comment: '%s'", path)
+
+	if path == "" || path == "/" {
+		// POST /api/comment - create comment
+		if r.Method == http.MethodPost {
+			handleCreateComment(w, r)
+		} else {
+			RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 		return
 	}
+
+	// Operations on specific comments: /api/comment/{id}
+	switch r.Method {
+	case http.MethodPut:
+		// PUT /api/comment/{id} - update comment
+		handleUpdateComment(w, r)
+	case http.MethodDelete:
+		// DELETE /api/comment/{id} - delete comment
+		handleDeleteComment(w, r)
+	default:
+		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleCreateComment handles comment creation
+func handleCreateComment(w http.ResponseWriter, r *http.Request) {
 
 	user := auth.GetUserFromSession(r)
 	if user == nil {
@@ -119,6 +146,140 @@ func CommentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RenderSuccess(w, "Comment created successfully", comment)
+}
+
+// handleUpdateComment handles comment updates
+func handleUpdateComment(w http.ResponseWriter, r *http.Request) {
+	log.Printf("🔄 handleUpdateComment - URL: %s", r.URL.Path)
+
+	user := auth.GetUserFromSession(r)
+	if user == nil {
+		log.Printf("❌ No user in session")
+		RenderError(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract comment ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/api/comment/")
+	if path == "" {
+		path = strings.TrimPrefix(r.URL.Path, "/api/comment")
+		path = strings.TrimPrefix(path, "/")
+	}
+	log.Printf("📝 Extracted path: %s", path)
+
+	commentID, err := strconv.Atoi(path)
+	if err != nil {
+		log.Printf("❌ Invalid comment ID: %s, error: %v", path, err)
+		RenderError(w, "Invalid comment ID", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("📝 Comment ID: %d", commentID)
+
+	// Get existing comment to verify ownership
+	existingComment, err := getCommentByID(commentID)
+	if err != nil {
+		RenderError(w, "Comment not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if user owns the comment
+	if existingComment.UserID != user.ID {
+		RenderError(w, "You can only edit your own comments", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		Content string `json:"content"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RenderError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate input
+	if req.Content == "" {
+		RenderError(w, "Content is required", http.StatusBadRequest)
+		return
+	}
+
+	// Update comment
+	_, err = database.DB.Exec(`
+		UPDATE comments SET content = ?, updated_at = ? WHERE id = ?
+	`, req.Content, time.Now(), commentID)
+
+	if err != nil {
+		RenderError(w, "Failed to update comment", http.StatusInternalServerError)
+		return
+	}
+
+	// Get updated comment
+	updatedComment, err := getCommentByID(commentID)
+	if err != nil {
+		RenderError(w, "Failed to retrieve updated comment", http.StatusInternalServerError)
+		return
+	}
+
+	RenderSuccess(w, "Comment updated successfully", updatedComment)
+}
+
+// handleDeleteComment handles comment deletion
+func handleDeleteComment(w http.ResponseWriter, r *http.Request) {
+	log.Printf("🗑️ handleDeleteComment - URL: %s", r.URL.Path)
+
+	user := auth.GetUserFromSession(r)
+	if user == nil {
+		log.Printf("❌ No user in session")
+		RenderError(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract comment ID from URL path
+	path := strings.TrimPrefix(r.URL.Path, "/api/comment/")
+	if path == "" {
+		path = strings.TrimPrefix(r.URL.Path, "/api/comment")
+		path = strings.TrimPrefix(path, "/")
+	}
+	log.Printf("📝 Extracted path: %s", path)
+
+	commentID, err := strconv.Atoi(path)
+	if err != nil {
+		log.Printf("❌ Invalid comment ID: %s, error: %v", path, err)
+		RenderError(w, "Invalid comment ID", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("📝 Comment ID: %d", commentID)
+
+	// Get existing comment to verify ownership
+	existingComment, err := getCommentByID(commentID)
+	if err != nil {
+		RenderError(w, "Comment not found", http.StatusNotFound)
+		return
+	}
+
+	// Check if user owns the comment
+	if existingComment.UserID != user.ID {
+		RenderError(w, "You can only delete your own comments", http.StatusForbidden)
+		return
+	}
+
+	// Delete comment likes first (foreign key constraint)
+	_, err = database.DB.Exec(`DELETE FROM likes WHERE comment_id = ?`, commentID)
+	if err != nil {
+		RenderError(w, "Failed to delete comment likes", http.StatusInternalServerError)
+		return
+	}
+
+	// Delete comment
+	_, err = database.DB.Exec(`DELETE FROM comments WHERE id = ?`, commentID)
+	if err != nil {
+		RenderError(w, "Failed to delete comment", http.StatusInternalServerError)
+		return
+	}
+
+	RenderSuccess(w, "Comment deleted successfully", nil)
 }
 
 // handleCommentsRequest handles requests for post comments
@@ -221,6 +382,8 @@ func CommentsHandler(w http.ResponseWriter, r *http.Request) {
 
 // LikeHandler handles like/dislike operations
 func LikeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("👍 LikeHandler - Method: %s, URL: %s", r.Method, r.URL.Path)
+
 	if r.Method != http.MethodPost {
 		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -228,15 +391,19 @@ func LikeHandler(w http.ResponseWriter, r *http.Request) {
 
 	user := auth.GetUserFromSession(r)
 	if user == nil {
+		log.Printf("❌ No user in session for like request")
 		RenderError(w, "Authentication required", http.StatusUnauthorized)
 		return
 	}
 
 	var req models.LikeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("❌ Invalid request body: %v", err)
 		RenderError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+
+	log.Printf("📝 Like request - PostID: %v, CommentID: %v, IsLike: %v", req.PostID, req.CommentID, req.IsLike)
 
 	// Validate that either postID or commentID is provided
 	if req.PostID == nil && req.CommentID == nil {

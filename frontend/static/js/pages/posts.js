@@ -354,8 +354,10 @@ window.PostsPage = {
 
     renderComment(comment) {
         const timeAgo = window.utils.formatDate(comment.createdAt);
+        const isOwnComment = window.forumApp.currentUser && comment.userId === window.forumApp.currentUser.id;
+
         return `
-            <div class="comment-item">
+            <div class="comment-item" data-comment-id="${comment.id}">
                 <div class="comment-header">
                     <img src="${comment.authorAvatar || '/static/images/default-avatar.png'}"
                          alt="${window.utils.escapeHtml(comment.author)}'s avatar"
@@ -365,8 +367,28 @@ window.PostsPage = {
                         <span class="comment-time">${timeAgo}</span>
                     </div>
                 </div>
-                <div class="comment-content">
+                <div class="comment-content" data-original-content="${window.utils.escapeHtml(comment.content)}">
                     ${window.utils.escapeHtml(comment.content)}
+                </div>
+                <div class="comment-actions">
+                    <button class="comment-action-btn like-comment-btn ${comment.userLiked ? 'active' : ''}"
+                            data-comment-id="${comment.id}" data-action="like">
+                        👍 ${comment.likeCount || 0}
+                    </button>
+                    <button class="comment-action-btn dislike-comment-btn ${comment.userDisliked ? 'active' : ''}"
+                            data-comment-id="${comment.id}" data-action="dislike">
+                        👎 ${comment.dislikeCount || 0}
+                    </button>
+                    ${isOwnComment ? `
+                        <button class="comment-action-btn edit-comment-btn"
+                                data-comment-id="${comment.id}">
+                            ✏️ Edit
+                        </button>
+                        <button class="comment-action-btn delete-comment-btn"
+                                data-comment-id="${comment.id}">
+                            🗑️ Delete
+                        </button>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -437,17 +459,20 @@ window.PostsPage = {
             if (response.success) {
                 // Clear form
                 textarea.value = '';
-                this.updateCharCount(textarea);
 
-                // Reload comments to show the new comment
-                await this.loadCommentsForPost(postId);
-
-                // Update comment count in the toggle button
+                // Update comment count in the toggle button BEFORE reloading comments
                 const toggleBtn = document.querySelector(`[data-post-id="${postId}"].comment-toggle-btn`);
                 if (toggleBtn) {
                     const currentCount = parseInt(toggleBtn.textContent.match(/\d+/)[0]) || 0;
-                    toggleBtn.innerHTML = `💬 ${currentCount + 1}`;
+                    const newCount = currentCount + 1;
+                    toggleBtn.innerHTML = `💬 ${newCount}`;
+                    console.log(`📊 Updated comment count from ${currentCount} to ${newCount} for post ${postId}`);
+                } else {
+                    console.log(`❌ Could not find toggle button for post ${postId}`);
                 }
+
+                // Reload comments to show the new comment
+                await this.loadCommentsForPost(postId);
 
                 if (window.forumApp.notificationComponent) {
                     window.forumApp.notificationComponent.success('Comment posted successfully!');
@@ -468,14 +493,7 @@ window.PostsPage = {
         }
     },
 
-    updateCharCount(textarea) {
-        const charCount = textarea.value.length;
-        const charCountElement = textarea.closest('.comment-form').querySelector('.comment-char-count');
-        if (charCountElement) {
-            charCountElement.textContent = `${charCount}/500`;
-            charCountElement.style.color = charCount > 450 ? 'var(--error-color)' : 'var(--text-muted)';
-        }
-    },
+
 
     bindCommentFormEvents() {
         // Bind comment form submissions
@@ -484,18 +502,262 @@ window.PostsPage = {
             form.addEventListener('submit', this.handleCommentSubmit.bind(this));
         });
 
-        // Bind character count updates
+        // Auto-resize textarea
         const textareas = document.querySelectorAll('.comment-textarea');
         textareas.forEach(textarea => {
             textarea.addEventListener('input', () => {
-                this.updateCharCount(textarea);
-            });
-
-            // Auto-resize textarea
-            textarea.addEventListener('input', () => {
                 textarea.style.height = 'auto';
-                textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+                textarea.style.height = Math.min(textarea.scrollHeight, 80) + 'px';
             });
         });
+
+        // Bind comment action buttons
+        this.bindCommentActions();
+    },
+
+    bindCommentActions() {
+        // Like/Dislike buttons
+        const likeDislikeButtons = document.querySelectorAll('.like-comment-btn, .dislike-comment-btn');
+        likeDislikeButtons.forEach(button => {
+            button.addEventListener('click', this.handleCommentLikeDislike.bind(this));
+        });
+
+        // Edit buttons
+        const editButtons = document.querySelectorAll('.edit-comment-btn');
+        editButtons.forEach(button => {
+            button.addEventListener('click', this.handleCommentEdit.bind(this));
+        });
+
+        // Delete buttons
+        const deleteButtons = document.querySelectorAll('.delete-comment-btn');
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', this.handleCommentDelete.bind(this));
+        });
+    },
+
+    async handleCommentLikeDislike(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const commentId = button.dataset.commentId;
+        const action = button.dataset.action;
+        const isLike = action === 'like';
+
+        if (!window.forumApp.currentUser) {
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error('Please login to like comments');
+            }
+            return;
+        }
+
+        // Get the comment item and both buttons
+        const commentItem = button.closest('.comment-item');
+        const likeBtn = commentItem.querySelector('.like-comment-btn');
+        const dislikeBtn = commentItem.querySelector('.dislike-comment-btn');
+
+        // Store original states in case we need to revert
+        const originalLikeActive = likeBtn.classList.contains('active');
+        const originalDislikeActive = dislikeBtn.classList.contains('active');
+        const originalLikeCount = parseInt(likeBtn.textContent.match(/\d+/)[0]) || 0;
+        const originalDislikeCount = parseInt(dislikeBtn.textContent.match(/\d+/)[0]) || 0;
+
+        try {
+            // Optimistically update UI
+            if (isLike) {
+                // Clicking like
+                if (originalLikeActive) {
+                    // Unlike
+                    likeBtn.classList.remove('active');
+                    likeBtn.innerHTML = `👍 ${Math.max(0, originalLikeCount - 1)}`;
+                } else {
+                    // Like (and remove dislike if active)
+                    likeBtn.classList.add('active');
+                    likeBtn.innerHTML = `👍 ${originalLikeCount + 1}`;
+                    if (originalDislikeActive) {
+                        dislikeBtn.classList.remove('active');
+                        dislikeBtn.innerHTML = `👎 ${Math.max(0, originalDislikeCount - 1)}`;
+                    }
+                }
+            } else {
+                // Clicking dislike
+                if (originalDislikeActive) {
+                    // Un-dislike
+                    dislikeBtn.classList.remove('active');
+                    dislikeBtn.innerHTML = `👎 ${Math.max(0, originalDislikeCount - 1)}`;
+                } else {
+                    // Dislike (and remove like if active)
+                    dislikeBtn.classList.add('active');
+                    dislikeBtn.innerHTML = `👎 ${originalDislikeCount + 1}`;
+                    if (originalLikeActive) {
+                        likeBtn.classList.remove('active');
+                        likeBtn.innerHTML = `👍 ${Math.max(0, originalLikeCount - 1)}`;
+                    }
+                }
+            }
+
+            console.log('🔄 Liking comment:', commentId, 'isLike:', isLike);
+
+            const response = await window.api.likeComment(parseInt(commentId), isLike);
+            console.log('📡 Like response:', response);
+
+            if (response.success && response.data) {
+                // Update with actual counts from server
+                likeBtn.innerHTML = `👍 ${response.data.likeCount || 0}`;
+                dislikeBtn.innerHTML = `👎 ${response.data.dislikeCount || 0}`;
+            } else if (!response.success) {
+                throw new Error(response.message || 'Failed to update like status');
+            }
+        } catch (error) {
+            console.error('Failed to like/dislike comment:', error);
+
+            // Revert UI changes on error
+            likeBtn.classList.toggle('active', originalLikeActive);
+            dislikeBtn.classList.toggle('active', originalDislikeActive);
+            likeBtn.innerHTML = `👍 ${originalLikeCount}`;
+            dislikeBtn.innerHTML = `👎 ${originalDislikeCount}`;
+
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error('Failed to update like status');
+            }
+        }
+    },
+
+    handleCommentEdit(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const commentId = button.dataset.commentId;
+        const commentItem = button.closest('.comment-item');
+        const contentDiv = commentItem.querySelector('.comment-content');
+        const originalContent = contentDiv.dataset.originalContent;
+
+        // Replace content with textarea
+        contentDiv.innerHTML = `
+            <div class="edit-comment-form">
+                <textarea class="edit-comment-textarea" maxlength="500">${originalContent}</textarea>
+                <div class="edit-comment-actions">
+                    <button class="btn btn-primary btn-sm save-edit-btn" data-comment-id="${commentId}">Save</button>
+                    <button class="btn btn-secondary btn-sm cancel-edit-btn">Cancel</button>
+                </div>
+            </div>
+        `;
+
+        // Bind save and cancel events
+        const saveBtn = contentDiv.querySelector('.save-edit-btn');
+        const cancelBtn = contentDiv.querySelector('.cancel-edit-btn');
+        const textarea = contentDiv.querySelector('.edit-comment-textarea');
+
+        // Auto-resize textarea
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        textarea.focus();
+
+        saveBtn.addEventListener('click', () => this.saveCommentEdit(commentId, textarea.value, contentDiv, originalContent));
+        cancelBtn.addEventListener('click', () => this.cancelCommentEdit(contentDiv, originalContent));
+
+        // Auto-resize on input
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        });
+    },
+
+    async saveCommentEdit(commentId, newContent, contentDiv, originalContent) {
+        if (!newContent.trim()) {
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error('Comment cannot be empty');
+            }
+            return;
+        }
+
+        try {
+            console.log('🔄 Updating comment:', commentId, 'content:', newContent.trim());
+
+            const response = await window.api.updateComment(commentId, { content: newContent.trim() });
+            console.log('📡 Update response:', response);
+
+            if (response.success) {
+                // Update content and original content
+                contentDiv.innerHTML = window.utils.escapeHtml(newContent.trim());
+                contentDiv.dataset.originalContent = newContent.trim();
+
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.success('Comment updated successfully');
+                }
+            } else {
+                throw new Error(response.message || 'Failed to update comment');
+            }
+        } catch (error) {
+            console.error('Failed to update comment:', error);
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error(error.message || 'Failed to update comment');
+            }
+            // Restore original content on error
+            this.cancelCommentEdit(contentDiv, originalContent);
+        }
+    },
+
+    cancelCommentEdit(contentDiv, originalContent) {
+        contentDiv.innerHTML = window.utils.escapeHtml(originalContent);
+    },
+
+    async handleCommentDelete(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const commentId = button.dataset.commentId;
+
+        if (!confirm('Are you sure you want to delete this comment?')) {
+            return;
+        }
+
+        try {
+            console.log('🔄 Deleting comment:', commentId);
+
+            const response = await window.api.deleteComment(commentId);
+            console.log('📡 Delete response:', response);
+
+            if (response.success) {
+                // Get post ID before removing comment
+                const commentItem = button.closest('.comment-item');
+                const commentsContainer = commentItem.closest('.post-comments-container');
+                const postId = commentsContainer.id.replace('comments-container-', '');
+
+                // Remove comment from DOM
+                commentItem.remove();
+
+                // Update comment count in toggle button
+                const toggleBtn = document.querySelector(`[data-post-id="${postId}"].comment-toggle-btn`);
+                if (toggleBtn) {
+                    const currentCount = parseInt(toggleBtn.textContent.match(/\d+/)[0]) || 0;
+                    const newCount = Math.max(0, currentCount - 1);
+                    toggleBtn.innerHTML = `💬 ${newCount}`;
+                    console.log(`📊 Updated comment count from ${currentCount} to ${newCount} for post ${postId}`);
+                } else {
+                    console.log(`❌ Could not find toggle button for post ${postId}`);
+                }
+
+                // Update comments header if it exists
+                const commentsHeader = commentsContainer.querySelector('.comments-header h4');
+                if (commentsHeader) {
+                    const remainingComments = commentsContainer.querySelectorAll('.comment-item').length;
+                    commentsHeader.textContent = `Comments (${remainingComments})`;
+                }
+
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.success('Comment deleted successfully');
+                }
+            } else {
+                throw new Error(response.message || 'Failed to delete comment');
+            }
+        } catch (error) {
+            console.error('Failed to delete comment:', error);
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error(error.message || 'Failed to delete comment');
+            }
+        }
     }
 };
