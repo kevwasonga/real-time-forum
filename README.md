@@ -36,10 +36,15 @@ This implementation merges the best features from two different approaches:
 - **Secure Sessions** - Cookie-based sessions with automatic logout
 - **Profile Management** - View and edit user profiles with avatar support
 
-### 💬 Real-time Communication
-- **Private Messaging** - Instant messaging between users
-- **Live Notifications** - Real-time notifications for messages, friend requests, and interactions
-- **User Presence** - See who's online in real-time
+### 💬 Real-time Private Messaging System
+- **User List with Online Status** - View all users with real-time online/offline indicators
+- **Message Preview** - See latest message preview and timestamp for each user
+- **Instant Messaging** - Real-time message delivery using WebSockets
+- **Message History** - Paginated chat history with lazy loading (10 messages per page)
+- **Scroll-based Loading** - Load older messages by scrolling to top
+- **Message Formatting** - Proper timestamp display (HH:MM format) and sender identification
+- **Conversation Management** - Switch between conversations and users seamlessly
+- **Live Notifications** - Real-time notifications for new messages
 - **Typing Indicators** - Know when someone is typing
 - **WebSocket Hub** - Advanced connection management with heartbeat monitoring
 
@@ -88,6 +93,40 @@ frontend/static/
 │   └── main.js        # Application initialization
 └── index.html     # Single-page application
 ```
+
+## 📬 Private Messaging Implementation
+
+### Database Schema
+The private messaging system uses a dedicated `messages` table with UUID primary keys:
+```sql
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    sender_id TEXT NOT NULL,
+    receiver_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+### API Endpoints
+- **`GET /api/users`** - Get all users with online status and message preview
+- **`GET /api/chat/history?with={user_id}&page={n}`** - Get paginated chat history (10 messages per page)
+- **`POST /api/messages`** - Send a new message
+- **`GET /api/messages`** - Get conversation list
+- **`GET /api/messages/{user_id}`** - Get messages with specific user
+
+### WebSocket Events
+- **`private_message`** - Send/receive real-time messages
+- **`user_status`** - Online/offline status updates
+- **`typing_indicator`** - Typing status notifications
+
+### Security Features
+- **Input Sanitization** - All user input is sanitized to prevent XSS attacks
+- **Content Validation** - Message length limits and suspicious pattern detection
+- **Authentication Required** - All endpoints require valid session authentication
+- **Message Spoofing Prevention** - Server-side user identity validation
 
 ## 📋 Prerequisites
 
