@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -486,6 +487,21 @@ func (c *Client) handlePrivateMessage(data interface{}) {
 	content, ok := messageData["content"].(string)
 	if !ok || content == "" {
 		log.Printf("❌ Missing or invalid message content")
+		return
+	}
+
+	// Validate message content length
+	if len(content) > 1000 {
+		log.Printf("❌ Message content too long from user %s", c.UserID)
+		c.sendErrorMessage("Message too long (max 1000 characters)")
+		return
+	}
+
+	// Basic content validation - prevent XSS attempts
+	if strings.Contains(strings.ToLower(content), "<script") ||
+		strings.Contains(strings.ToLower(content), "javascript:") {
+		log.Printf("❌ Suspicious content detected from user %s", c.UserID)
+		c.sendErrorMessage("Message contains invalid content")
 		return
 	}
 

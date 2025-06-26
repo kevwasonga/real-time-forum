@@ -3,8 +3,10 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"math/rand"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +16,56 @@ import (
 	"forum/internal/models"
 	"forum/internal/websocket"
 )
+
+// Security and validation constants
+const (
+	MaxMessageLength = 1000
+	MaxSearchLength  = 100
+)
+
+// sanitizeInput sanitizes user input to prevent XSS and other attacks
+func sanitizeInput(input string) string {
+	// Remove HTML tags and escape HTML entities
+	input = html.EscapeString(input)
+
+	// Remove potentially dangerous characters
+	dangerousChars := regexp.MustCompile(`[<>\"'&]`)
+	input = dangerousChars.ReplaceAllString(input, "")
+
+	// Trim whitespace
+	input = strings.TrimSpace(input)
+
+	return input
+}
+
+// validateMessageContent validates message content
+func validateMessageContent(content string) error {
+	if len(content) == 0 {
+		return fmt.Errorf("message content cannot be empty")
+	}
+
+	if len(content) > MaxMessageLength {
+		return fmt.Errorf("message content too long (max %d characters)", MaxMessageLength)
+	}
+
+	// Check for suspicious patterns
+	suspiciousPatterns := []string{
+		"<script",
+		"javascript:",
+		"onload=",
+		"onerror=",
+		"onclick=",
+	}
+
+	lowerContent := strings.ToLower(content)
+	for _, pattern := range suspiciousPatterns {
+		if strings.Contains(lowerContent, pattern) {
+			return fmt.Errorf("message content contains suspicious patterns")
+		}
+	}
+
+	return nil
+}
 
 // MessagesHandler handles messages listing and creation
 func MessagesHandler(w http.ResponseWriter, r *http.Request) {
@@ -97,9 +149,30 @@ func createMessageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate input
+	// Validate and sanitize input
 	if req.ReceiverID == "" || req.Content == "" {
 		RenderError(w, "Receiver ID and content are required", http.StatusBadRequest)
+		return
+	}
+
+	// Validate message content
+	if err := validateMessageContent(req.Content); err != nil {
+		RenderError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Sanitize content to prevent XSS
+	req.Content = sanitizeInput(req.Content)
+
+	// Validate receiver ID format (should be UUID-like)
+	if len(req.ReceiverID) == 0 || len(req.ReceiverID) > 100 {
+		RenderError(w, "Invalid receiver ID format", http.StatusBadRequest)
+		return
+	}
+
+	// Prevent self-messaging
+	if req.ReceiverID == user.ID {
+		RenderError(w, "Cannot send message to yourself", http.StatusBadRequest)
 		return
 	}
 
@@ -452,10 +525,19 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get query parameters
+	// Get and validate query parameters
 	search := r.URL.Query().Get("search")
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
+
+	// Sanitize search input
+	if search != "" {
+		if len(search) > MaxSearchLength {
+			RenderError(w, "Search query too long", http.StatusBadRequest)
+			return
+		}
+		search = sanitizeInput(search)
+	}
 
 	// Set defaults
 	limit := 20
