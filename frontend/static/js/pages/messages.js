@@ -4,6 +4,9 @@ window.MessagesPage = {
     selectedConversation: null,
     messages: [],
     users: [],
+    currentPage: 0,
+    isLoadingMessages: false,
+    hasMoreMessages: true,
 
     async render() {
         window.forumApp.setCurrentPage('messages');
@@ -274,6 +277,11 @@ window.MessagesPage = {
         console.log('🔄 selectConversation called with:', conversation);
         this.selectedConversation = conversation;
 
+        // Reset pagination state
+        this.currentPage = 0;
+        this.hasMoreMessages = true;
+        this.isLoadingMessages = false;
+
         // Update UI to show active state
         this.renderConversations(); // Re-render to show active state
 
@@ -288,19 +296,52 @@ window.MessagesPage = {
         console.log('💬 Chat opened in main area for:', conversation.nickname);
     },
 
-    async loadMessages(userID) {
+    async loadMessages(userID, page = 0, append = false) {
+        if (this.isLoadingMessages) return;
+
+        this.isLoadingMessages = true;
+
         try {
-            const response = await window.api.getMessages(userID);
+            // Use the new chat history API with pagination
+            const response = await window.api.getChatHistory(userID, page);
             if (response.success) {
-                this.messages = response.data || [];
+                const newMessages = response.data || [];
+
+                if (append) {
+                    // Prepend older messages to the beginning
+                    this.messages = [...newMessages, ...this.messages];
+                } else {
+                    // Replace messages (initial load)
+                    this.messages = newMessages;
+                    this.currentPage = 0;
+                    this.hasMoreMessages = newMessages.length === 10; // If we got 10 messages, there might be more
+                }
+
+                // Check if we have more messages
+                if (newMessages.length < 10) {
+                    this.hasMoreMessages = false;
+                }
+
                 this.renderMessages();
-                console.log('📨 Loaded', this.messages.length, 'messages for conversation');
+                console.log('📨 Loaded', newMessages.length, 'messages for conversation (page', page, ')');
             } else {
                 console.error('❌ Failed to load messages:', response.message);
             }
         } catch (error) {
             console.error('❌ Failed to load messages:', error);
+        } finally {
+            this.isLoadingMessages = false;
         }
+    },
+
+    async loadOlderMessages() {
+        if (!this.selectedConversation || !this.hasMoreMessages || this.isLoadingMessages) {
+            return;
+        }
+
+        const nextPage = this.currentPage + 1;
+        await this.loadMessages(this.selectedConversation.userID, nextPage, true);
+        this.currentPage = nextPage;
     },
 
     renderMessages() {
@@ -347,6 +388,7 @@ window.MessagesPage = {
 
         console.log('✅ Chat HTML rendered, binding events...');
         this.bindMessageEvents();
+        this.bindScrollEvents();
         this.scrollToBottom();
         console.log('✅ Chat interface fully rendered');
     },
@@ -356,26 +398,58 @@ window.MessagesPage = {
             return '<div class="no-messages">No messages yet. Start the conversation!</div>';
         }
 
-        return this.messages.map(message => {
-            const isOwnMessage = window.forumApp.currentUser && 
+        let messagesHTML = '';
+
+        // Add loading indicator for older messages if applicable
+        if (this.hasMoreMessages) {
+            messagesHTML += '<div id="load-more-indicator" class="load-more-indicator">Scroll up to load older messages...</div>';
+        }
+
+        messagesHTML += this.messages.map(message => {
+            const isOwnMessage = window.forumApp.currentUser &&
                                message.senderID === window.forumApp.currentUser.id;
-            
-            // Format message as specified in prompt: [YYYY-MM-DD HH:MM] Username: Content
-            const timestamp = window.utils.formatTime(message.createdAt);
+
+            // Format timestamp as HH:MM (local time) as per requirements
+            const timestamp = window.utils.formatTime(message.timestamp || message.createdAt);
             const senderName = isOwnMessage ? 'You' : message.senderName;
-            
+
             return `
                 <div class="message ${isOwnMessage ? 'own-message' : 'other-message'}">
                     <div class="message-content">
                         <div class="message-header">
+                            <span class="message-sender">${window.utils.escapeHtml(senderName)}</span>
                             <span class="message-time">${timestamp}</span>
-                            <span class="message-sender">${window.utils.escapeHtml(senderName)}:</span>
                         </div>
                         <div class="message-text">${window.utils.escapeHtml(message.content)}</div>
                     </div>
                 </div>
             `;
         }).join('');
+
+        return messagesHTML;
+    },
+
+    bindScrollEvents() {
+        const messagesList = document.getElementById('messages-list');
+        if (!messagesList) return;
+
+        // Throttled scroll handler for lazy loading
+        const scrollHandler = window.utils.throttle(() => {
+            // Check if scrolled to top (within 50px)
+            if (messagesList.scrollTop <= 50 && this.hasMoreMessages && !this.isLoadingMessages) {
+                console.log('📜 Loading older messages...');
+                const currentScrollHeight = messagesList.scrollHeight;
+
+                this.loadOlderMessages().then(() => {
+                    // Maintain scroll position after loading older messages
+                    const newScrollHeight = messagesList.scrollHeight;
+                    const scrollDiff = newScrollHeight - currentScrollHeight;
+                    messagesList.scrollTop = messagesList.scrollTop + scrollDiff;
+                });
+            }
+        }, 200);
+
+        messagesList.addEventListener('scroll', scrollHandler);
     },
 
     bindMessageEvents() {

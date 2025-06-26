@@ -1575,6 +1575,44 @@ body {
     font-style: italic;
 }
 
+/* Load more indicator for lazy loading */
+.load-more-indicator {
+    text-align: center;
+    padding: var(--spacing-sm);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-style: italic;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: var(--spacing-sm);
+}
+
+/* Enhanced message formatting */
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-xs);
+    font-size: 0.8rem;
+}
+
+.message-sender {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.message-time {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.own-message .message-sender {
+    color: var(--primary-color);
+}
+
+.other-message .message-sender {
+    color: var(--accent-color);
+}
+
 .conversation-item {
     display: flex;
     align-items: center;
