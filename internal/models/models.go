@@ -126,6 +126,19 @@ type OnlineUser struct {
 	LastSeen  time.Time `json:"lastSeen" db:"last_seen"`
 }
 
+// UserWithStatus represents a user with online status and latest message preview
+type UserWithStatus struct {
+	ID                 string     `json:"id" db:"id"`
+	Nickname           string     `json:"nickname" db:"nickname"`
+	FirstName          string     `json:"firstName" db:"first_name"`
+	LastName           string     `json:"lastName" db:"last_name"`
+	AvatarURL          *string    `json:"avatarUrl,omitempty" db:"avatar_url"`
+	IsOnline           bool       `json:"isOnline" db:"-"`
+	LastMessagePreview string     `json:"lastMessagePreview" db:"-"`
+	LastMessageTime    *time.Time `json:"lastMessageTime,omitempty" db:"-"`
+	CreatedAt          time.Time  `json:"createdAt" db:"created_at"`
+}
+
 // Category represents a post category
 type Category struct {
 	Name      string `json:"name" db:"name"`

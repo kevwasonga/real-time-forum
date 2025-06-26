@@ -454,7 +454,6 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Get query parameters
 	search := r.URL.Query().Get("search")
-	sortBy := r.URL.Query().Get("sort")
 	limitStr := r.URL.Query().Get("limit")
 	offsetStr := r.URL.Query().Get("offset")
 
@@ -474,84 +473,131 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var query string
-	var args []interface{}
-
-	// Base query
-	baseQuery := `
-		SELECT id, nickname, first_name, last_name, avatar_url, created_at
-		FROM users
-		WHERE id != ?
-	`
-
-	// Add search condition
-	if search != "" {
-		baseQuery += ` AND (
-			nickname LIKE ? OR
-			first_name LIKE ? OR
-			last_name LIKE ?
-		)`
-	}
-
-	// Add ordering
-	switch sortBy {
-	case "newest":
-		baseQuery += ` ORDER BY created_at DESC`
-	case "oldest":
-		baseQuery += ` ORDER BY created_at ASC`
-	case "alphabetical":
-		baseQuery += ` ORDER BY nickname ASC`
-	case "active":
-		// Order by users who have been active recently
-		baseQuery += ` ORDER BY (
-			SELECT MAX(last_seen) FROM online_users WHERE user_id = users.id
-		) DESC NULLS LAST, created_at DESC`
-	case "random":
-		baseQuery += ` ORDER BY RANDOM()`
-	case "recent":
-		baseQuery += ` ORDER BY created_at DESC`
-	default:
-		baseQuery += ` ORDER BY nickname ASC`
-	}
-
-	// Add limit and offset
-	baseQuery += ` LIMIT ? OFFSET ?`
-
-	// Prepare arguments
-	args = []interface{}{user.ID}
-
-	if search != "" {
-		searchPattern := "%" + search + "%"
-		args = append(args, searchPattern, searchPattern, searchPattern)
-	}
-
-	args = append(args, limit, offset)
-
-	query = baseQuery
-
-	rows, err := database.DB.Query(query, args...)
+	// Get users with online status and latest message preview
+	users, err := getUsersWithStatus(user.ID, search, limit, offset)
 	if err != nil {
 		RenderError(w, "Failed to fetch users", http.StatusInternalServerError)
 		return
 	}
+
+	RenderSuccess(w, "Users retrieved successfully", users)
+}
+
+// getUsersWithStatus gets users with online status and latest message preview
+func getUsersWithStatus(currentUserID, search string, limit, offset int) ([]models.UserWithStatus, error) {
+	// Complex query to get users with online status and latest message preview
+	query := `
+		SELECT DISTINCT
+			u.id,
+			u.nickname,
+			u.first_name,
+			u.last_name,
+			u.avatar_url,
+			u.created_at,
+			CASE
+				WHEN ou.user_id IS NOT NULL AND ou.last_seen > datetime('now', '-5 minutes')
+				THEN 1
+				ELSE 0
+			END as is_online,
+			COALESCE(latest_msg.content, '') as last_message_preview,
+			latest_msg.timestamp as last_message_time
+		FROM users u
+		LEFT JOIN online_users ou ON u.id = ou.user_id
+		LEFT JOIN (
+			SELECT
+				CASE
+					WHEN sender_id = ? THEN receiver_id
+					ELSE sender_id
+				END as other_user_id,
+				content,
+				timestamp,
+				ROW_NUMBER() OVER (
+					PARTITION BY CASE
+						WHEN sender_id = ? THEN receiver_id
+						ELSE sender_id
+					END
+					ORDER BY timestamp DESC
+				) as rn
+			FROM messages
+			WHERE sender_id = ? OR receiver_id = ?
+		) latest_msg ON latest_msg.other_user_id = u.id AND latest_msg.rn = 1
+		WHERE u.id != ?
+	`
+
+	args := []interface{}{currentUserID, currentUserID, currentUserID, currentUserID, currentUserID}
+
+	// Add search condition
+	if search != "" {
+		query += ` AND (
+			u.nickname LIKE ? OR
+			u.first_name LIKE ? OR
+			u.last_name LIKE ?
+		)`
+		searchPattern := "%" + search + "%"
+		args = append(args, searchPattern, searchPattern, searchPattern)
+	}
+
+	// Sort by: 1. Most recently messaged, 2. Alphabetical (as per requirements)
+	query += `
+		ORDER BY
+			CASE WHEN latest_msg.timestamp IS NOT NULL THEN 0 ELSE 1 END,
+			latest_msg.timestamp DESC,
+			u.nickname ASC
+		LIMIT ? OFFSET ?
+	`
+	args = append(args, limit, offset)
+
+	rows, err := database.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 
-	var users []models.User
+	var users []models.UserWithStatus
 	for rows.Next() {
-		var u models.User
-		err := rows.Scan(&u.ID, &u.Nickname, &u.FirstName, &u.LastName, &u.AvatarURL, &u.CreatedAt)
+		var user models.UserWithStatus
+		var isOnlineInt int
+		var lastMessageTimeStr *string
+
+		err := rows.Scan(
+			&user.ID,
+			&user.Nickname,
+			&user.FirstName,
+			&user.LastName,
+			&user.AvatarURL,
+			&user.CreatedAt,
+			&isOnlineInt,
+			&user.LastMessagePreview,
+			&lastMessageTimeStr,
+		)
 		if err != nil {
-			RenderError(w, "Failed to scan user", http.StatusInternalServerError)
-			return
+			return nil, err
 		}
-		users = append(users, u)
+
+		user.IsOnline = isOnlineInt == 1
+
+		// Parse last message time if present
+		if lastMessageTimeStr != nil && *lastMessageTimeStr != "" {
+			if parsedTime, err := time.Parse("2006-01-02T15:04:05Z", *lastMessageTimeStr); err == nil {
+				user.LastMessageTime = &parsedTime
+			} else if parsedTime, err := time.Parse("2006-01-02 15:04:05", *lastMessageTimeStr); err == nil {
+				user.LastMessageTime = &parsedTime
+			}
+		}
+
+		// Truncate message preview to 50 characters
+		if len(user.LastMessagePreview) > 50 {
+			user.LastMessagePreview = user.LastMessagePreview[:50] + "..."
+		}
+
+		users = append(users, user)
 	}
 
 	if users == nil {
-		users = []models.User{}
+		users = []models.UserWithStatus{}
 	}
 
-	RenderSuccess(w, "Users retrieved successfully", users)
+	return users, nil
 }
 
 // generateMessageID generates a unique message ID
