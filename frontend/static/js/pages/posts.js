@@ -296,10 +296,16 @@ window.PostsPage = {
             // Fetch comments from API
             const response = await window.api.getComments(postId);
             console.log('📡 Comments API response:', response);
+            console.log('📡 Response success:', response.success);
+            console.log('📡 Response data:', response.data);
+            console.log('📡 Response data type:', typeof response.data);
+            console.log('📡 Response data is array:', Array.isArray(response.data));
 
-            if (response.success && response.data) {
-                const comments = response.data;
+            if (response.success) {
+                // Handle both cases: response.data exists or is null/undefined
+                const comments = response.data || [];
                 console.log('✅ Loaded comments:', comments);
+                console.log('✅ Comments length:', comments.length);
 
                 if (comments.length === 0) {
                     commentsSection.innerHTML = `
@@ -324,11 +330,25 @@ window.PostsPage = {
                 this.bindCommentFormEvents();
             } else {
                 console.error('❌ API response failed:', response);
-                commentsSection.innerHTML = '<div class="comments-error">Failed to load comments</div>';
+                // Even on API failure, show the comment form for posts that exist
+                commentsSection.innerHTML = `
+                    <div class="comments-error">
+                        <p>Unable to load comments at the moment.</p>
+                    </div>
+                    ${this.renderCommentForm(postId)}
+                `;
+                this.bindCommentFormEvents();
             }
         } catch (error) {
             console.error('❌ Failed to load comments:', error);
-            commentsSection.innerHTML = '<div class="comments-error">Failed to load comments</div>';
+            // Show error but still provide comment form
+            commentsSection.innerHTML = `
+                <div class="comments-error">
+                    <p>Unable to load comments at the moment.</p>
+                </div>
+                ${this.renderCommentForm(postId)}
+            `;
+            this.bindCommentFormEvents();
         }
     },
 
