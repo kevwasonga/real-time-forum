@@ -3,6 +3,7 @@ window.MessagesPage = {
     conversations: [],
     selectedConversation: null,
     messages: [],
+    users: [],
 
     async render() {
         window.forumApp.setCurrentPage('messages');
@@ -18,19 +19,26 @@ window.MessagesPage = {
                 <div class="messages-sidebar">
                     <div class="messages-header">
                         <h2>Messages</h2>
-                        <button id="new-message-btn" class="btn btn-primary btn-sm">New Message</button>
+                        <div class="sidebar-tabs">
+                            <button id="conversations-tab" class="tab-btn active">Conversations</button>
+                            <button id="users-tab" class="tab-btn">Users</button>
+                        </div>
                     </div>
-                    
+
                     <div class="search-users">
                         <input type="text" id="user-search" placeholder="Search users..." class="search-input">
                         <div id="user-search-results" class="search-results"></div>
                     </div>
-                    
+
                     <div id="conversations-list" class="conversations-list">
                         <div class="loading-placeholder">Loading conversations...</div>
                     </div>
+
+                    <div id="users-list" class="users-list" style="display: none;">
+                        <div class="loading-placeholder">Loading users...</div>
+                    </div>
                 </div>
-                
+
                 <div class="messages-main">
                     <div id="messages-content" class="messages-content">
                         <div class="no-conversation-selected">
@@ -44,14 +52,22 @@ window.MessagesPage = {
         `;
 
         await this.loadConversations();
+        await this.loadUsers();
         this.bindEvents();
         this.bindTestButton();
     },
 
     bindEvents() {
-        const newMessageBtn = document.getElementById('new-message-btn');
-        if (newMessageBtn) {
-            newMessageBtn.addEventListener('click', this.toggleUserSearch.bind(this));
+        // Tab functionality
+        const conversationsTab = document.getElementById('conversations-tab');
+        const usersTab = document.getElementById('users-tab');
+
+        if (conversationsTab) {
+            conversationsTab.addEventListener('click', () => this.switchTab('conversations'));
+        }
+
+        if (usersTab) {
+            usersTab.addEventListener('click', () => this.switchTab('users'));
         }
 
         const userSearch = document.getElementById('user-search');
@@ -64,6 +80,114 @@ window.MessagesPage = {
             window.forumApp.websocket.addEventListener('private_message', (message) => {
                 this.handleNewMessage(message);
             });
+
+            // Listen for user status updates
+            window.forumApp.websocket.addEventListener('user_status', (data) => {
+                this.handleUserStatusUpdate(data);
+            });
+        }
+    },
+
+    switchTab(tab) {
+        const conversationsTab = document.getElementById('conversations-tab');
+        const usersTab = document.getElementById('users-tab');
+        const conversationsList = document.getElementById('conversations-list');
+        const usersList = document.getElementById('users-list');
+
+        if (tab === 'conversations') {
+            conversationsTab.classList.add('active');
+            usersTab.classList.remove('active');
+            conversationsList.style.display = 'block';
+            usersList.style.display = 'none';
+        } else if (tab === 'users') {
+            conversationsTab.classList.remove('active');
+            usersTab.classList.add('active');
+            conversationsList.style.display = 'none';
+            usersList.style.display = 'block';
+        }
+    },
+
+    async loadUsers() {
+        try {
+            const response = await window.api.getUsers();
+            if (response.success) {
+                this.users = response.data || [];
+                this.renderUsers();
+            }
+        } catch (error) {
+            console.error('Failed to load users:', error);
+            const container = document.getElementById('users-list');
+            if (container) {
+                container.innerHTML = '<div class="error-message">Failed to load users</div>';
+            }
+        }
+    },
+
+    renderUsers() {
+        const container = document.getElementById('users-list');
+        if (!container) return;
+
+        if (this.users.length === 0) {
+            container.innerHTML = '<div class="no-users">No users found</div>';
+            return;
+        }
+
+        // Sort users as per requirements: 1. Most recently messaged, 2. Alphabetical
+        const sortedUsers = [...this.users].sort((a, b) => {
+            if (a.lastMessageTime && b.lastMessageTime) {
+                return new Date(b.lastMessageTime) - new Date(a.lastMessageTime);
+            }
+            if (a.lastMessageTime && !b.lastMessageTime) return -1;
+            if (!a.lastMessageTime && b.lastMessageTime) return 1;
+            return a.nickname.localeCompare(b.nickname);
+        });
+
+        container.innerHTML = sortedUsers.map(user => `
+            <div class="user-item" data-user-id="${user.id}">
+                <div class="user-avatar-container">
+                    <img src="${user.avatarUrl || '/static/images/default-avatar.png'}"
+                         alt="${window.utils.escapeHtml(user.nickname)}'s avatar"
+                         class="user-avatar">
+                    <div class="online-indicator ${user.isOnline ? 'online' : 'offline'}"></div>
+                </div>
+                <div class="user-info">
+                    <div class="user-header">
+                        <span class="user-name">${window.utils.escapeHtml(user.nickname)}</span>
+                        <span class="user-status">${user.isOnline ? 'Online' : 'Offline'}</span>
+                    </div>
+                    <div class="user-preview">
+                        ${user.lastMessagePreview ? window.utils.escapeHtml(user.lastMessagePreview) : 'No messages yet'}
+                    </div>
+                    ${user.lastMessageTime ? `<div class="user-time">${window.utils.formatDate(user.lastMessageTime)}</div>` : ''}
+                </div>
+            </div>
+        `).join('');
+
+        // Bind user click events
+        const userItems = container.querySelectorAll('.user-item');
+        userItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const userID = item.dataset.userId;
+                const user = this.users.find(u => u.id === userID);
+
+                if (user) {
+                    this.startNewConversation(user);
+                }
+            });
+        });
+    },
+
+    handleUserStatusUpdate(data) {
+        // Update user online status in the users list
+        if (this.users) {
+            const user = this.users.find(u => u.id === data.userID);
+            if (user) {
+                user.isOnline = data.status === 'online';
+                this.renderUsers();
+            }
         }
     },
 
