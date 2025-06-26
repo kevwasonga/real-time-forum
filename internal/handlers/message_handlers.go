@@ -137,6 +137,47 @@ func createMessageHandler(w http.ResponseWriter, r *http.Request) {
 	RenderSuccess(w, "Message sent successfully", message)
 }
 
+// ChatHistoryHandler handles chat history requests with pagination
+func ChatHistoryHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Require authentication
+	user := auth.GetUserFromSession(r)
+	if user == nil {
+		RenderError(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	// Get query parameters
+	withUserID := r.URL.Query().Get("with")
+	pageStr := r.URL.Query().Get("page")
+
+	if withUserID == "" {
+		RenderError(w, "Missing 'with' parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Parse page number (default to 0)
+	page := 0
+	if pageStr != "" {
+		if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage >= 0 {
+			page = parsedPage
+		}
+	}
+
+	// Get paginated messages
+	messages, err := getChatHistory(user.ID, withUserID, page)
+	if err != nil {
+		RenderError(w, "Failed to retrieve chat history", http.StatusInternalServerError)
+		return
+	}
+
+	RenderSuccess(w, "Chat history retrieved successfully", messages)
+}
+
 // Helper functions for message handlers
 
 // getUserConversations gets all conversations for a user
@@ -324,6 +365,67 @@ func getMessageByID(messageID string) (*models.Message, error) {
 	}
 
 	return &message, nil
+}
+
+// getChatHistory gets paginated chat history between two users
+func getChatHistory(userID1, userID2 string, page int) ([]models.Message, error) {
+	// Calculate offset for pagination (10 messages per page)
+	offset := page * 10
+
+	// Get messages ordered by timestamp in ascending order (as per requirements)
+	rows, err := database.DB.Query(`
+		SELECT m.id, m.sender_id, m.receiver_id, m.content, m.timestamp,
+		       sender.nickname as sender_nickname,
+		       receiver.nickname as receiver_nickname
+		FROM messages m
+		JOIN users sender ON m.sender_id = sender.id
+		JOIN users receiver ON m.receiver_id = receiver.id
+		WHERE (m.sender_id = ? AND m.receiver_id = ?)
+		   OR (m.sender_id = ? AND m.receiver_id = ?)
+		ORDER BY m.timestamp ASC
+		LIMIT 10 OFFSET ?
+	`, userID1, userID2, userID2, userID1, offset)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []models.Message
+	for rows.Next() {
+		var message models.Message
+		var timestampStr string
+
+		err := rows.Scan(
+			&message.ID,
+			&message.SenderID,
+			&message.ReceiverID,
+			&message.Content,
+			&timestampStr,
+			&message.SenderName,
+			&message.ReceiverName,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Parse timestamp
+		if timestampStr != "" {
+			parsedTime, err := time.Parse("2006-01-02T15:04:05Z", timestampStr)
+			if err != nil {
+				parsedTime, err = time.Parse("2006-01-02 15:04:05", timestampStr)
+				if err != nil {
+					parsedTime = time.Now()
+				}
+			}
+			message.Timestamp = parsedTime
+			message.CreatedAt = parsedTime // For compatibility
+		}
+
+		messages = append(messages, message)
+	}
+
+	return messages, nil
 }
 
 // markMessagesAsRead marks messages as read

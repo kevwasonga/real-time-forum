@@ -71,6 +71,7 @@ func setupRoutes() {
 	http.HandleFunc("/api/like", handlers.LikeHandler)
 	http.HandleFunc("/api/messages", handlers.MessagesHandler)
 	http.HandleFunc("/api/messages/", handlers.MessageHandler)
+	http.HandleFunc("/api/chat/history", handlers.ChatHistoryHandler)
 	http.HandleFunc("/api/users", handlers.UsersHandler)
 	http.HandleFunc("/api/categories", handlers.CategoriesHandler)
 	http.HandleFunc("/api/profile", handlers.ProfileHandler)

@@ -137,6 +137,10 @@ window.api = {
         return this.post('/messages', { receiverId, content });
     },
 
+    async getChatHistory(withUserId, page = 0) {
+        return this.get(`/chat/history?with=${withUserId}&page=${page}`);
+    },
+
     // Users endpoints
     async getUsers(params = {}) {
         return this.get('/users', params);
