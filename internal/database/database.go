@@ -229,7 +229,7 @@ func createTables() error {
 		"CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);",
 		"CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id);",
 		"CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON messages(sender_id, receiver_id);",
-		"CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);",
+		"CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_likes_post_id ON likes(post_id);",
 		"CREATE INDEX IF NOT EXISTS idx_likes_comment_id ON likes(comment_id);",
 		"CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);",
