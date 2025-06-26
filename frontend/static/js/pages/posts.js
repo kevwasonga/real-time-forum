@@ -1,7 +1,11 @@
 // Posts Page Component
 window.PostsPage = {
-    async render() {
+    async render(options = {}) {
         window.forumApp.setCurrentPage('posts');
+
+        // Store options for later use
+        this.highlightPostId = options.highlightPost;
+        this.scrollToPostId = options.scrollToPost;
 
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
@@ -9,13 +13,13 @@ window.PostsPage = {
                 <div class="posts-header">
                     <h1>Community Posts</h1>
                     <div class="posts-actions">
-                        ${window.auth.isLoggedIn() ? 
-                            '<a href="/create-post" data-route="/create-post" class="btn btn-primary">Create Post</a>' : 
+                        ${window.auth.isLoggedIn() ?
+                            '<a href="/create-post" data-route="/create-post" class="btn btn-primary">Create Post</a>' :
                             '<a href="/login" data-route="/login" class="btn btn-primary">Login to Post</a>'
                         }
                     </div>
                 </div>
-                
+
                 <div class="posts-filters">
                     <div class="filter-group">
                         <label for="category-filter">Filter by Category:</label>
@@ -24,7 +28,7 @@ window.PostsPage = {
                         </select>
                     </div>
                 </div>
-                
+
                 <div id="posts-list" class="posts-list">
                     <div class="loading-placeholder">Loading posts...</div>
                 </div>
@@ -34,6 +38,13 @@ window.PostsPage = {
         await this.loadCategories();
         await this.loadPosts();
         this.bindEvents();
+
+        // Handle post highlighting and scrolling
+        if (this.highlightPostId || this.scrollToPostId) {
+            setTimeout(() => {
+                this.handlePostNavigation();
+            }, 500); // Wait for posts to render
+        }
     },
 
     bindEvents() {

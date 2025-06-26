@@ -140,19 +140,51 @@ window.HomePage = {
         }
 
         container.innerHTML = posts.map(post => `
-            <div class="recent-post">
+            <div class="recent-post" data-post-id="${post.id}">
                 <div class="post-header">
-                    <h4><a href="/post/${post.id}" data-route="/post/${post.id}">${window.utils.escapeHtml(post.title)}</a></h4>
+                    <h4>${window.utils.escapeHtml(post.title)}</h4>
                     <span class="post-meta">by ${window.utils.escapeHtml(post.author)} • ${window.utils.formatDate(post.createdAt)}</span>
+                </div>
+                <div class="post-excerpt">
+                    ${window.utils.escapeHtml(post.content.substring(0, 150))}${post.content.length > 150 ? '...' : ''}
                 </div>
                 <div class="post-categories">
                     ${post.categories.map(cat => `<span class="category-tag">${window.utils.escapeHtml(cat)}</span>`).join('')}
                 </div>
                 <div class="post-stats">
-                    <span>👍 ${post.likeCount}</span>
-                    <span>💬 ${post.commentCount}</span>
+                    <span class="stat-display">👍 ${post.likeCount}</span>
+                    <span class="stat-display">👎 ${post.dislikeCount}</span>
+                    <span class="stat-display">💬 ${post.commentCount}</span>
+                    <span class="click-to-interact">Click to interact →</span>
                 </div>
             </div>
         `).join('');
+
+        // Bind click events to navigate to posts page
+        this.bindRecentPostEvents();
+    },
+
+    bindRecentPostEvents() {
+        const recentPosts = document.querySelectorAll('.recent-post');
+        recentPosts.forEach(postElement => {
+            postElement.addEventListener('click', (event) => {
+                // Don't navigate if clicking on category tags
+                if (event.target.classList.contains('category-tag')) {
+                    return;
+                }
+
+                const postId = postElement.dataset.postId;
+                console.log('📱 Navigating to post:', postId);
+
+                // Navigate to posts page with the specific post highlighted
+                window.forumApp.router.navigate('/posts', {
+                    highlightPost: postId,
+                    scrollToPost: postId
+                });
+            });
+
+            // Add hover effect
+            postElement.style.cursor = 'pointer';
+        });
     }
 };
