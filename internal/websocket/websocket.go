@@ -529,7 +529,7 @@ func (c *Client) storePrivateMessage(receiverID, content string) (string, error)
 	messageID := generateMessageID()
 
 	_, err := database.DB.Exec(`
-		INSERT INTO private_messages (id, sender_id, receiver_id, content, created_at)
+		INSERT INTO messages (id, sender_id, receiver_id, content, timestamp)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`, messageID, c.UserID, receiverID, content)
 

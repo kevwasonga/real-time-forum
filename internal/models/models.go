@@ -4,19 +4,19 @@ import "time"
 
 // User represents a user in the system with comprehensive profile information
 type User struct {
-	ID          string    `json:"id" db:"id"`
-	Email       string    `json:"email" db:"email"`
-	Nickname    string    `json:"nickname" db:"nickname"`
-	Password    string    `json:"-" db:"password"` // Never expose password in JSON
-	FirstName   string    `json:"firstName" db:"first_name"`
-	LastName    string    `json:"lastName" db:"last_name"`
-	Age         int       `json:"age" db:"age"`
-	Gender      string    `json:"gender" db:"gender"`
-	GoogleID    *string   `json:"googleId,omitempty" db:"google_id"`
-	GithubID    *string   `json:"githubId,omitempty" db:"github_id"`
-	AvatarURL   *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
-	CreatedAt   time.Time `json:"createdAt" db:"created_at"`
-	UpdatedAt   time.Time `json:"updatedAt" db:"updated_at"`
+	ID        string    `json:"id" db:"id"`
+	Email     string    `json:"email" db:"email"`
+	Nickname  string    `json:"nickname" db:"nickname"`
+	Password  string    `json:"-" db:"password"` // Never expose password in JSON
+	FirstName string    `json:"firstName" db:"first_name"`
+	LastName  string    `json:"lastName" db:"last_name"`
+	Age       int       `json:"age" db:"age"`
+	Gender    string    `json:"gender" db:"gender"`
+	GoogleID  *string   `json:"googleId,omitempty" db:"google_id"`
+	GithubID  *string   `json:"githubId,omitempty" db:"github_id"`
+	AvatarURL *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
+	CreatedAt time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt time.Time `json:"updatedAt" db:"updated_at"`
 }
 
 // Post represents a forum post with enhanced features
@@ -56,16 +56,16 @@ type Comment struct {
 	UserDisliked bool      `json:"userDisliked" db:"user_disliked"`
 }
 
-// Message represents a private message between users
+// Message represents a private message between users (as per requirements)
 type Message struct {
-	ID           int       `json:"id" db:"id"`
+	ID           string    `json:"id" db:"id"`
 	SenderID     string    `json:"senderId" db:"sender_id"`
 	ReceiverID   string    `json:"receiverId" db:"receiver_id"`
 	Content      string    `json:"content" db:"content"`
 	SenderName   string    `json:"senderName" db:"sender_nickname"`
 	ReceiverName string    `json:"receiverName" db:"receiver_nickname"`
-	CreatedAt    time.Time `json:"createdAt" db:"created_at"`
-	ReadAt       *time.Time `json:"readAt,omitempty" db:"read_at"`
+	Timestamp    time.Time `json:"timestamp" db:"timestamp"`
+	CreatedAt    time.Time `json:"createdAt" db:"timestamp"` // Alias for compatibility
 }
 
 // Conversation represents a conversation between two users

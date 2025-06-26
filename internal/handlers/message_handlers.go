@@ -113,9 +113,9 @@ func createMessageHandler(w http.ResponseWriter, r *http.Request) {
 	// Generate message ID
 	messageID := generateMessageID()
 
-	// Insert message into private_messages table
+	// Insert message into messages table (as per requirements)
 	_, err = database.DB.Exec(`
-		INSERT INTO private_messages (id, sender_id, receiver_id, content, created_at)
+		INSERT INTO messages (id, sender_id, receiver_id, content, timestamp)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
 	`, messageID, user.ID, req.ReceiverID, req.Content)
 
@@ -224,15 +224,15 @@ func getUserConversations(userID string) ([]models.Conversation, error) {
 func getMessagesBetweenUsers(userID1, userID2 string) ([]models.Message, error) {
 	// Get last 10 messages by default, ordered by creation time (most recent first, then reverse)
 	rows, err := database.DB.Query(`
-		SELECT pm.id, pm.sender_id, pm.receiver_id, pm.content, pm.created_at, pm.read_at,
+		SELECT m.id, m.sender_id, m.receiver_id, m.content, m.timestamp,
 		       sender.nickname as sender_nickname,
 		       receiver.nickname as receiver_nickname
-		FROM private_messages pm
-		JOIN users sender ON pm.sender_id = sender.id
-		JOIN users receiver ON pm.receiver_id = receiver.id
-		WHERE (pm.sender_id = ? AND pm.receiver_id = ?)
-		   OR (pm.sender_id = ? AND pm.receiver_id = ?)
-		ORDER BY pm.created_at DESC
+		FROM messages m
+		JOIN users sender ON m.sender_id = sender.id
+		JOIN users receiver ON m.receiver_id = receiver.id
+		WHERE (m.sender_id = ? AND m.receiver_id = ?)
+		   OR (m.sender_id = ? AND m.receiver_id = ?)
+		ORDER BY m.timestamp DESC
 		LIMIT 10
 	`, userID1, userID2, userID2, userID1)
 
@@ -244,16 +244,14 @@ func getMessagesBetweenUsers(userID1, userID2 string) ([]models.Message, error) 
 	var messages []models.Message
 	for rows.Next() {
 		var message models.Message
-		var createdAtStr string
-		var readAtStr *string
+		var timestampStr string
 
 		err := rows.Scan(
 			&message.ID,
 			&message.SenderID,
 			&message.ReceiverID,
 			&message.Content,
-			&createdAtStr,
-			&readAtStr,
+			&timestampStr,
 			&message.SenderName,
 			&message.ReceiverName,
 		)
@@ -261,27 +259,17 @@ func getMessagesBetweenUsers(userID1, userID2 string) ([]models.Message, error) 
 			return nil, err
 		}
 
-		// Parse timestamps
-		if createdAtStr != "" {
-			parsedTime, err := time.Parse("2006-01-02T15:04:05Z", createdAtStr)
+		// Parse timestamp
+		if timestampStr != "" {
+			parsedTime, err := time.Parse("2006-01-02T15:04:05Z", timestampStr)
 			if err != nil {
-				parsedTime, err = time.Parse("2006-01-02 15:04:05", createdAtStr)
+				parsedTime, err = time.Parse("2006-01-02 15:04:05", timestampStr)
 				if err != nil {
 					parsedTime = time.Now()
 				}
 			}
-			message.CreatedAt = parsedTime
-		}
-
-		if readAtStr != nil && *readAtStr != "" {
-			parsedTime, err := time.Parse("2006-01-02T15:04:05Z", *readAtStr)
-			if err != nil {
-				parsedTime, err = time.Parse("2006-01-02 15:04:05", *readAtStr)
-				if err != nil {
-					parsedTime = time.Now()
-				}
-			}
-			message.ReadAt = &parsedTime
+			message.Timestamp = parsedTime
+			message.CreatedAt = parsedTime // For compatibility
 		}
 
 		messages = append(messages, message)
@@ -298,24 +286,22 @@ func getMessagesBetweenUsers(userID1, userID2 string) ([]models.Message, error) 
 // getMessageByID gets a message by ID
 func getMessageByID(messageID string) (*models.Message, error) {
 	var message models.Message
-	var createdAtStr string
-	var readAtStr *string
+	var timestampStr string
 
 	err := database.DB.QueryRow(`
-		SELECT pm.id, pm.sender_id, pm.receiver_id, pm.content, pm.created_at, pm.read_at,
+		SELECT m.id, m.sender_id, m.receiver_id, m.content, m.timestamp,
 		       sender.nickname as sender_nickname,
 		       receiver.nickname as receiver_nickname
-		FROM private_messages pm
-		JOIN users sender ON pm.sender_id = sender.id
-		JOIN users receiver ON pm.receiver_id = receiver.id
-		WHERE pm.id = ?
+		FROM messages m
+		JOIN users sender ON m.sender_id = sender.id
+		JOIN users receiver ON m.receiver_id = receiver.id
+		WHERE m.id = ?
 	`, messageID).Scan(
 		&message.ID,
 		&message.SenderID,
 		&message.ReceiverID,
 		&message.Content,
-		&createdAtStr,
-		&readAtStr,
+		&timestampStr,
 		&message.SenderName,
 		&message.ReceiverName,
 	)
@@ -324,27 +310,17 @@ func getMessageByID(messageID string) (*models.Message, error) {
 		return nil, err
 	}
 
-	// Parse timestamps
-	if createdAtStr != "" {
-		parsedTime, err := time.Parse("2006-01-02T15:04:05Z", createdAtStr)
+	// Parse timestamp
+	if timestampStr != "" {
+		parsedTime, err := time.Parse("2006-01-02T15:04:05Z", timestampStr)
 		if err != nil {
-			parsedTime, err = time.Parse("2006-01-02 15:04:05", createdAtStr)
+			parsedTime, err = time.Parse("2006-01-02 15:04:05", timestampStr)
 			if err != nil {
 				parsedTime = time.Now()
 			}
 		}
-		message.CreatedAt = parsedTime
-	}
-
-	if readAtStr != nil && *readAtStr != "" {
-		parsedTime, err := time.Parse("2006-01-02T15:04:05Z", *readAtStr)
-		if err != nil {
-			parsedTime, err = time.Parse("2006-01-02 15:04:05", *readAtStr)
-			if err != nil {
-				parsedTime = time.Now()
-			}
-		}
-		message.ReadAt = &parsedTime
+		message.Timestamp = parsedTime
+		message.CreatedAt = parsedTime // For compatibility
 	}
 
 	return &message, nil

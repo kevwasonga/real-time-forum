@@ -136,15 +136,14 @@ func createTables() error {
 		FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
 	);`
 
-	// Messages table for private messaging
+	// Messages table for private messaging (as per requirements)
 	messagesTable := `
 	CREATE TABLE IF NOT EXISTS messages (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		id TEXT PRIMARY KEY,
 		sender_id TEXT NOT NULL,
 		receiver_id TEXT NOT NULL,
 		content TEXT NOT NULL,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		read_at TIMESTAMP,
+		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
 		FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
