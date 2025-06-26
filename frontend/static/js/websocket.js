@@ -231,18 +231,31 @@ window.WebSocketClient = class {
 
     handlePrivateMessage(message) {
         console.log('💬 Received private message:', message.data);
-        
-        // Update chat UI if available
+
+        // Update MessagesPage if available and active
+        if (window.MessagesPage && window.forumApp.currentPage === 'messages') {
+            window.MessagesPage.handleNewMessage(message.data);
+        }
+
+        // Update chat UI if available (legacy support)
         if (window.forumApp && window.forumApp.chatComponent) {
             window.forumApp.chatComponent.addMessage(message.data);
         }
-        
-        // Show notification
+
+        // Show notification if not in chat view or if chat is not focused
         if (window.forumApp && window.forumApp.notificationComponent) {
             const msg = message.data;
-            window.forumApp.notificationComponent.info(
-                `New message from ${msg.senderName}: ${msg.content.substring(0, 50)}${msg.content.length > 50 ? '...' : ''}`
-            );
+
+            // Only show notification if not currently viewing this conversation
+            const isCurrentConversation = window.MessagesPage &&
+                window.MessagesPage.selectedConversation &&
+                window.MessagesPage.selectedConversation.userID === msg.senderId;
+
+            if (!isCurrentConversation || window.forumApp.currentPage !== 'messages') {
+                window.forumApp.notificationComponent.info(
+                    `New message from ${msg.senderName}: ${msg.content.substring(0, 50)}${msg.content.length > 50 ? '...' : ''}`
+                );
+            }
         }
     }
 

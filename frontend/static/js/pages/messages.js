@@ -486,46 +486,59 @@ window.MessagesPage = {
 
     async handleSendMessage(event) {
         event.preventDefault();
-        
+
         if (!this.selectedConversation) return;
-        
+
         const form = event.target;
         const messageInput = form.querySelector('#message-input');
         const content = messageInput.value.trim();
-        
+
         if (!content) return;
 
+        // Clear input immediately for better UX
+        messageInput.value = '';
+
         try {
+            // Send via API first to store in database
             const response = await window.api.sendMessage(this.selectedConversation.userID, content);
             if (response.success) {
-                messageInput.value = '';
-                
-                // Add message to local list
-                this.messages.push(response.data);
-                
+                // Add message to local list immediately
+                const newMessage = {
+                    id: response.data.id,
+                    senderID: window.forumApp.currentUser.id,
+                    receiverID: this.selectedConversation.userID,
+                    content: content,
+                    timestamp: new Date(),
+                    senderName: 'You'
+                };
+
+                this.messages.push(newMessage);
+
                 // Re-render messages
                 const messagesList = document.getElementById('messages-list');
                 if (messagesList) {
                     messagesList.innerHTML = this.renderMessagesList();
                     this.scrollToBottom();
                 }
-                
-                // Update conversations list
-                await this.loadConversations();
-                
-                // Send via WebSocket for real-time delivery
-                if (window.forumApp.websocket) {
+
+                // Send via WebSocket for real-time delivery to receiver
+                if (window.forumApp.websocket && window.forumApp.websocket.isConnected) {
                     window.forumApp.websocket.sendPrivateMessage(
-                        this.selectedConversation.userID, 
+                        this.selectedConversation.userID,
                         content
                     );
                 }
+
+                // Update conversations list
+                await this.loadConversations();
             }
         } catch (error) {
             console.error('Failed to send message:', error);
             if (window.forumApp.notificationComponent) {
                 window.forumApp.notificationComponent.error('Failed to send message');
             }
+            // Restore the message in input if sending failed
+            messageInput.value = content;
         }
     },
 
@@ -631,22 +644,54 @@ window.MessagesPage = {
     },
 
     handleNewMessage(message) {
-        // Update conversations list
+        console.log('📨 Handling new message:', message);
+
+        // Update conversations list to reflect new message
         this.loadConversations();
-        
+
         // If this message is for the current conversation, add it
-        if (this.selectedConversation && 
-            ((message.senderID === this.selectedConversation.userID && 
-              message.receiverID === window.forumApp.currentUser.id) ||
-             (message.senderID === window.forumApp.currentUser.id && 
-              message.receiverID === this.selectedConversation.userID))) {
-            
-            this.messages.push(message);
-            
-            const messagesList = document.getElementById('messages-list');
-            if (messagesList) {
-                messagesList.innerHTML = this.renderMessagesList();
-                this.scrollToBottom();
+        if (this.selectedConversation) {
+            const isForCurrentConversation =
+                (message.senderID === this.selectedConversation.userID &&
+                 message.receiverID === window.forumApp.currentUser.id) ||
+                (message.senderID === window.forumApp.currentUser.id &&
+                 message.receiverID === this.selectedConversation.userID);
+
+            if (isForCurrentConversation) {
+                // Check if message already exists (to avoid duplicates)
+                const messageExists = this.messages.some(m => m.id === message.id);
+
+                if (!messageExists) {
+                    // Ensure proper message format
+                    const formattedMessage = {
+                        id: message.id,
+                        senderID: message.senderID || message.senderId,
+                        receiverID: message.receiverID || message.receiverId,
+                        content: message.content,
+                        timestamp: message.timestamp || message.createdAt || new Date(),
+                        senderName: message.senderName || (message.senderID === window.forumApp.currentUser.id ? 'You' : 'Unknown')
+                    };
+
+                    this.messages.push(formattedMessage);
+
+                    const messagesList = document.getElementById('messages-list');
+                    if (messagesList) {
+                        messagesList.innerHTML = this.renderMessagesList();
+                        this.scrollToBottom();
+                    }
+
+                    console.log('✅ Message added to current conversation');
+                }
+            }
+        }
+
+        // Update user list if the message is from a user in the list
+        if (this.users) {
+            const user = this.users.find(u => u.id === message.senderID || u.id === message.senderId);
+            if (user) {
+                user.lastMessagePreview = message.content.substring(0, 50) + (message.content.length > 50 ? '...' : '');
+                user.lastMessageTime = new Date(message.timestamp || message.createdAt || new Date());
+                this.renderUsers();
             }
         }
     },
