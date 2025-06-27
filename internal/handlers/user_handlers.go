@@ -2,8 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"forum/internal/auth"
@@ -432,4 +436,161 @@ func getOnlineUsers() ([]models.OnlineUser, error) {
 	}
 
 	return onlineUsers, nil
+}
+
+// AvatarUploadHandler handles avatar file uploads
+func AvatarUploadHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	user := auth.GetUserFromSession(r)
+	if user == nil {
+		RenderError(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	// Parse multipart form
+	err := r.ParseMultipartForm(5 << 20) // 5MB limit
+	if err != nil {
+		RenderError(w, "Failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("avatar")
+	if err != nil {
+		RenderError(w, "No file uploaded", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Validate file type
+	contentType := header.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "image/") {
+		RenderError(w, "File must be an image", http.StatusBadRequest)
+		return
+	}
+
+	// Validate file size (5MB limit)
+	if header.Size > 5<<20 {
+		RenderError(w, "File size must be less than 5MB", http.StatusBadRequest)
+		return
+	}
+
+	// Get current working directory for debugging
+	wd, _ := os.Getwd()
+	log.Printf("📂 Current working directory: %s", wd)
+
+	// Create uploads directory if it doesn't exist
+	uploadsDir := "frontend/static/uploads/avatars"
+	log.Printf("📁 Creating uploads directory: %s", uploadsDir)
+	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+		log.Printf("❌ Failed to create upload directory: %v", err)
+		RenderError(w, "Failed to create upload directory", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate unique filename
+	ext := filepath.Ext(header.Filename)
+	filename := user.ID + "_" + time.Now().Format("20060102_150405") + ext
+	filePath := filepath.Join(uploadsDir, filename)
+	log.Printf("📄 Saving file to: %s", filePath)
+
+	// Save file
+	dst, err := os.Create(filePath)
+	if err != nil {
+		log.Printf("❌ Failed to create file: %v", err)
+		RenderError(w, "Failed to create file", http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, file)
+	if err != nil {
+		log.Printf("❌ Failed to copy file: %v", err)
+		RenderError(w, "Failed to save file", http.StatusInternalServerError)
+		return
+	}
+
+	// Verify file was created
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		log.Printf("❌ File was not created: %s", filePath)
+		RenderError(w, "File was not saved properly", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("✅ File created successfully: %s", filePath)
+
+	// Update user avatar URL in database (use forward slashes for web URLs)
+	avatarURL := "/static/uploads/avatars/" + filename
+	log.Printf("🔗 Avatar URL: %s", avatarURL)
+	_, err = database.DB.Exec(`
+		UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?
+	`, avatarURL, time.Now(), user.ID)
+
+	if err != nil {
+		log.Printf("❌ Failed to update database: %v", err)
+		RenderError(w, "Failed to update avatar", http.StatusInternalServerError)
+		return
+	}
+
+	// Test if file is accessible (optional debug step)
+	if _, err := os.Stat(filePath); err == nil {
+		log.Printf("✅ File exists and is accessible: %s", filePath)
+	} else {
+		log.Printf("⚠️ File may not be accessible: %v", err)
+	}
+
+	log.Printf("✅ Avatar uploaded successfully for user %s: %s", user.ID, avatarURL)
+	RenderSuccess(w, "Avatar uploaded successfully", map[string]string{
+		"avatarURL": avatarURL,
+	})
+}
+
+// AvatarUpdateHandler handles avatar URL updates (for default avatars)
+func AvatarUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	user := auth.GetUserFromSession(r)
+	if user == nil {
+		RenderError(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		AvatarURL string `json:"avatarUrl"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		RenderError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Validate avatar URL (must be a default avatar or uploaded file)
+	if req.AvatarURL == "" {
+		RenderError(w, "Avatar URL is required", http.StatusBadRequest)
+		return
+	}
+
+	// Update user avatar URL in database
+	_, err := database.DB.Exec(`
+		UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?
+	`, req.AvatarURL, time.Now(), user.ID)
+
+	if err != nil {
+		RenderError(w, "Failed to update avatar", http.StatusInternalServerError)
+		return
+	}
+
+	// Get updated user data
+	updatedUser, err := auth.GetUserByID(user.ID)
+	if err != nil {
+		RenderError(w, "Failed to retrieve updated user", http.StatusInternalServerError)
+		return
+	}
+
+	RenderSuccess(w, "Avatar updated successfully", updatedUser)
 }

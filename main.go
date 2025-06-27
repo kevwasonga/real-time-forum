@@ -67,7 +67,26 @@ func setupRoutes() {
 	http.HandleFunc("/api/user", handlers.CurrentUserHandler)
 	http.HandleFunc("/api/posts", handlers.PostsHandler)
 	http.HandleFunc("/api/posts/", handlers.PostHandler)
-	http.HandleFunc("/api/comment", handlers.CommentHandler)
+	// Comment routes - use a custom handler to catch all comment requests
+	http.HandleFunc("/api/comment", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🔀 Comment router - Method: %s, URL: %s", r.Method, r.URL.Path)
+		handlers.CommentHandler(w, r)
+	})
+	http.HandleFunc("/api/comment/", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🔀 Comment router with slash - Method: %s, URL: %s", r.Method, r.URL.Path)
+		handlers.CommentHandler(w, r)
+	})
+	http.HandleFunc("/api/comments/", handlers.CommentsHandler)
+	// Also handle without trailing slash for better compatibility
+	http.HandleFunc("/api/comments", handlers.CommentsHandler)
+
+	// Test endpoint
+	http.HandleFunc("/api/test", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🧪 Test endpoint called")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"success": true, "message": "Test endpoint working"}`))
+	})
 	http.HandleFunc("/api/like", handlers.LikeHandler)
 	http.HandleFunc("/api/messages", handlers.MessagesHandler)
 	http.HandleFunc("/api/messages/", handlers.MessageHandler)
@@ -76,6 +95,10 @@ func setupRoutes() {
 	http.HandleFunc("/api/profile", handlers.ProfileHandler)
 	http.HandleFunc("/api/friends", handlers.FriendsHandler)
 	http.HandleFunc("/api/online-users", handlers.OnlineUsersHandler)
+
+	// Avatar upload routes
+	http.HandleFunc("/api/upload/avatar", handlers.AvatarUploadHandler)
+	http.HandleFunc("/api/profile/avatar", handlers.AvatarUpdateHandler)
 
 	// OAuth routes
 	http.HandleFunc("/auth/google/login", handlers.GoogleLoginHandler)
