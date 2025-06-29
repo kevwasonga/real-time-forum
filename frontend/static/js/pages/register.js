@@ -18,6 +18,9 @@ window.RegisterPage = {
                     </div>
                     
                     <form id="register-form" class="auth-form">
+                        <!-- Error message area -->
+                        <div id="register-error" class="error-message" style="display: none;"></div>
+
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="firstName">First Name</label>
@@ -178,10 +181,10 @@ window.RegisterPage = {
 
     async handleRegister(event) {
         event.preventDefault();
-        
+
         const form = event.target;
         const formData = new FormData(form);
-        
+
         const userData = {
             firstName: formData.get('firstName').trim(),
             lastName: formData.get('lastName').trim(),
@@ -191,32 +194,71 @@ window.RegisterPage = {
             gender: formData.get('gender'),
             password: formData.get('password')
         };
-        
+
         const submitBtn = form.querySelector('button[type="submit"]');
-        
+
+        // Clear any previous errors
+        this.hideError();
+
+        // Basic validation
+        if (!userData.firstName || !userData.lastName || !userData.email || !userData.nickname || !userData.password) {
+            this.showError('Please fill in all required fields');
+            return;
+        }
+
+        if (userData.age < 13) {
+            this.showError('You must be at least 13 years old to register');
+            return;
+        }
+
         try {
             // Show loading state
             window.utils.setLoading(submitBtn, true, 'Creating Account...');
-            
+
             // Attempt registration
             const result = await window.auth.register(userData);
-            
+
             if (result.success) {
                 // Update app state
                 window.forumApp.onAuthSuccess(result.user);
+            } else {
+                // Show error from server response
+                this.showError(result.message || 'Registration failed. Please check your information and try again.');
             }
-            
+
         } catch (error) {
             console.error('Registration error:', error);
-            
-            // Show error notification
+
+            // Show error in form
+            this.showError(error.message || 'Registration failed. Please try again.');
+
+            // Also show notification as backup
             if (window.forumApp.notificationComponent) {
                 window.forumApp.notificationComponent.error(error.message || 'Registration failed');
             }
-            
+
         } finally {
             // Remove loading state
             window.utils.setLoading(submitBtn, false);
+        }
+    },
+
+    showError(message) {
+        const errorDiv = document.getElementById('register-error');
+        if (errorDiv) {
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+
+            // Scroll error into view
+            errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    },
+
+    hideError() {
+        const errorDiv = document.getElementById('register-error');
+        if (errorDiv) {
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
         }
     }
 };
