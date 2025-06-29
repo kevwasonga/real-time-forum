@@ -113,22 +113,35 @@ func setupRoutes() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
-		// Check if it's a valid frontend route or a sub-route
-		isValidRoute := validFrontendRoutes[path]
-		if !isValidRoute {
-			// Check for sub-routes (e.g., /post/123, /messages/456)
-			for route := range validFrontendRoutes {
-				if route != "/" && strings.HasPrefix(path, route+"/") {
-					isValidRoute = true
-					break
-				}
-			}
+		// Skip API routes - let them handle their own 404s
+		if strings.HasPrefix(path, "/api/") {
+			http.NotFound(w, r)
+			return
 		}
 
-		if isValidRoute || path == "/" {
-			http.ServeFile(w, r, "frontend/static/index.html")
-		} else {
-			http.NotFound(w, r)
-		}
+		// For all non-API routes, serve index.html and let frontend router handle routing
+		// This allows the frontend to show custom 404 pages
+		http.ServeFile(w, r, "frontend/static/index.html")
 	})
+
+	// Get port from environment or use default
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("🚀 Server starting on port %s", port)
+
+	// Add error recovery middleware
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("🚨 Server panic recovered: %v", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+		}()
+		http.DefaultServeMux.ServeHTTP(w, r)
+	})
+
+	log.Fatal(http.ListenAndServe(":"+port, handler))
 }

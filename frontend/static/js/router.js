@@ -45,7 +45,16 @@ window.Router = class {
             const route = this.findRoute(path);
             if (!route) {
                 console.error('❌ Route not found:', path);
-                this.navigate('/404', false);
+                console.log('🔍 Available routes:', Object.keys(this.routes));
+
+                // Show 404 error page
+                if (typeof window.showErrorPage === 'function') {
+                    console.log('📄 Showing custom 404 error page');
+                    window.showErrorPage(404, `The page "${path}" could not be found.`);
+                } else {
+                    console.log('📄 Falling back to /404 route');
+                    this.navigate('/404', false);
+                }
                 return;
             }
 

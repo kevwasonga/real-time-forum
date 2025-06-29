@@ -29,7 +29,16 @@ window.api = {
             console.log('📡 Response data:', data);
 
             if (!response.ok) {
-                throw new Error(data.error || `HTTP error! status: ${response.status}`);
+                const errorMessage = data.error || data.message || `HTTP error! status: ${response.status}`;
+
+                // Show custom error page for certain status codes
+                if (response.status === 400) {
+                    window.showErrorPage(400, errorMessage);
+                } else if (response.status === 500) {
+                    window.showErrorPage(500, errorMessage);
+                }
+
+                throw new Error(errorMessage);
             }
 
             return data;

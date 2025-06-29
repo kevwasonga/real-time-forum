@@ -100,6 +100,39 @@ window.forumApp = {
 
         // Initialize page components
         this.initPages();
+
+        // Setup error handling
+        this.setupErrorHandling();
+    },
+
+    setupErrorHandling() {
+        // Handle fetch errors globally
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+            try {
+                const response = await originalFetch.apply(this, args);
+
+                // Check for HTTP error status codes
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        window.showErrorPage(404, 'Page not found');
+                        return response;
+                    } else if (response.status === 500) {
+                        window.showErrorPage(500, 'Internal server error');
+                        return response;
+                    } else if (response.status === 400) {
+                        window.showErrorPage(400, 'Bad request');
+                        return response;
+                    }
+                }
+
+                return response;
+            } catch (error) {
+                console.error('Network error:', error);
+                window.showErrorPage(500, 'Network error occurred');
+                throw error;
+            }
+        };
     },
 
     /**
@@ -189,16 +222,31 @@ window.forumApp = {
             requiresAuth: true
         });
 
+        // Error test routes
+        this.router.addRoute('/test-404', () => {
+            window.showErrorPage(404, 'This is a test 404 error page');
+        }, {
+            title: 'Forum - Test 404',
+            requiresAuth: true
+        });
+
+        this.router.addRoute('/test-500', () => {
+            window.showErrorPage(500, 'This is a test 500 error page');
+        }, {
+            title: 'Forum - Test 500',
+            requiresAuth: true
+        });
+
+        this.router.addRoute('/test-400', () => {
+            window.showErrorPage(400, 'This is a test 400 error page');
+        }, {
+            title: 'Forum - Test 400',
+            requiresAuth: true
+        });
+
         // 404 route
         this.router.addRoute('/404', () => {
-            const mainContent = document.getElementById('main-content');
-            mainContent.innerHTML = `
-                <div class="text-center">
-                    <h1>404 - Page Not Found</h1>
-                    <p>The page you're looking for doesn't exist.</p>
-                    <a href="/" data-route="/" class="btn btn-primary">Go Home</a>
-                </div>
-            `;
+            window.showErrorPage(404);
         }, {
             title: 'Forum - Page Not Found',
             requiresAuth: true
@@ -419,6 +467,115 @@ window.forumApp = {
             sidebar.style.display = 'block';
             console.log('👥 Showing right sidebar for page:', pageName);
         }
+    }
+};
+
+// Simple Error Page Component
+window.ErrorPage = {
+    render(errorCode = 404, errorMessage = null) {
+        window.forumApp.setCurrentPage('error');
+
+        const errorInfo = this.getErrorInfo(errorCode);
+        const customMessage = errorMessage || errorInfo.message;
+
+        const mainContent = document.getElementById('main-content');
+        mainContent.innerHTML = `
+            <div class="error-page">
+                <div class="error-container">
+                    <div class="error-icon">${errorInfo.icon}</div>
+                    <h1 class="error-code">${errorCode}</h1>
+                    <h2 class="error-title">${errorInfo.title}</h2>
+                    <p class="error-message">${customMessage}</p>
+                    <div class="error-actions">
+                        ${this.getErrorActions(errorCode)}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        this.bindEvents();
+    },
+
+    getErrorInfo(code) {
+        const errorTypes = {
+            400: {
+                title: 'Bad Request',
+                message: 'The request could not be understood by the server.',
+                icon: '⚠️'
+            },
+            404: {
+                title: 'Page Not Found',
+                message: 'The page you\'re looking for doesn\'t exist or has been moved.',
+                icon: '🔍'
+            },
+            500: {
+                title: 'Internal Server Error',
+                message: 'Something went wrong on our end. We\'re working to fix it.',
+                icon: '🔧'
+            }
+        };
+
+        return errorTypes[code] || {
+            title: 'Unknown Error',
+            message: 'An unexpected error occurred.',
+            icon: '❓'
+        };
+    },
+
+    getErrorActions(code) {
+        const isAuthenticated = window.forumApp && window.forumApp.isAuthenticated;
+
+        switch (code) {
+            case 404:
+                return `
+                    <a href="/" data-route="/" class="btn btn-primary">
+                        🏠 Go Home
+                    </a>
+                    ${isAuthenticated ? `
+                        <a href="/posts" data-route="/posts" class="btn btn-secondary">
+                            📝 Browse Posts
+                        </a>
+                    ` : ''}
+                    <button onclick="history.back()" class="btn btn-secondary">
+                        ← Go Back
+                    </button>
+                `;
+            default:
+                return `
+                    <button onclick="location.reload()" class="btn btn-primary">
+                        🔄 Refresh Page
+                    </button>
+                    <a href="/" data-route="/" class="btn btn-secondary">
+                        🏠 Go Home
+                    </a>
+                `;
+        }
+    },
+
+    bindEvents() {
+        const routeLinks = document.querySelectorAll('[data-route]');
+        routeLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const route = link.getAttribute('data-route');
+                if (window.forumApp && window.forumApp.router) {
+                    window.forumApp.router.navigate(route);
+                }
+            });
+        });
+    }
+};
+
+// Simple global error handler
+window.showErrorPage = function(errorCode, errorMessage = null) {
+    console.log(`🚨 Showing error page: ${errorCode}`, errorMessage);
+    console.log('🔧 ErrorPage available:', !!window.ErrorPage);
+
+    if (window.ErrorPage) {
+        console.log('✅ Rendering custom error page');
+        window.ErrorPage.render(errorCode, errorMessage);
+    } else {
+        console.error('❌ ErrorPage not available');
     }
 };
 
