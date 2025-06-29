@@ -143,9 +143,10 @@ window.forumApp = {
     initRouter() {
         this.router = new window.Router();
 
-        // Register routes
+        // Register routes - all require authentication except login/register
         this.router.addRoute('/', this.pages.home, {
-            title: 'Forum - Home'
+            title: 'Forum - Home',
+            requiresAuth: true
         });
 
         this.router.addRoute('/login', this.pages.login, {
@@ -159,11 +160,13 @@ window.forumApp = {
         });
 
         this.router.addRoute('/posts', this.pages.posts, {
-            title: 'Forum - Posts'
+            title: 'Forum - Posts',
+            requiresAuth: true
         });
 
         this.router.addRoute('/post/:id', this.pages.post, {
-            title: 'Forum - Post'
+            title: 'Forum - Post',
+            requiresAuth: true
         });
 
         this.router.addRoute('/create-post', this.pages.createPost, {
@@ -197,7 +200,8 @@ window.forumApp = {
                 </div>
             `;
         }, {
-            title: 'Forum - Page Not Found'
+            title: 'Forum - Page Not Found',
+            requiresAuth: true
         });
 
         // Initialize router
@@ -255,13 +259,13 @@ window.forumApp = {
         const authButtons = document.getElementById('auth-buttons');
         const userNickname = document.getElementById('user-nickname');
         const userAvatar = document.getElementById('user-avatar');
-
-        // Show main UI elements
-        if (header) header.style.display = 'block';
-        if (mainContent) mainContent.style.display = 'block';
+        const navigation = document.querySelector('.nav-links');
 
         if (this.isAuthenticated && this.currentUser) {
-            // Show authenticated UI
+            // Show authenticated UI - full app interface
+            if (header) header.style.display = 'block';
+            if (mainContent) mainContent.style.display = 'block';
+            if (navigation) navigation.style.display = 'flex';
             if (userMenu) userMenu.style.display = 'block';
             if (authButtons) authButtons.style.display = 'none';
             if (sidebar) {
@@ -276,12 +280,19 @@ window.forumApp = {
             if (userAvatar) {
                 userAvatar.src = this.currentUser.avatarUrl || '/static/images/default-avatar.svg';
             }
-            
+
+            console.log('🔓 Showing authenticated UI');
+
         } else {
-            // Show unauthenticated UI
+            // Show unauthenticated UI - hide everything except main content
+            if (header) header.style.display = 'none';
+            if (navigation) navigation.style.display = 'none';
+            if (mainContent) mainContent.style.display = 'block';
             if (userMenu) userMenu.style.display = 'none';
-            if (authButtons) authButtons.style.display = 'flex';
+            if (authButtons) authButtons.style.display = 'none';
             if (sidebar) sidebar.style.display = 'none';
+
+            console.log('🔒 Showing unauthenticated UI - header and navbar hidden');
         }
 
         // Set up logout handler
@@ -299,16 +310,23 @@ window.forumApp = {
             await window.auth.logout();
             this.currentUser = null;
             this.isAuthenticated = false;
-            
+
             // Disconnect WebSocket
             if (this.websocket) {
                 this.websocket.disconnect();
                 this.websocket = null;
             }
-            
+
             // Update UI
             this.updateAuthUI();
-            
+
+            // Redirect to login page
+            if (this.router) {
+                this.router.navigate('/login');
+            }
+
+            console.log('🔒 User logged out and redirected to login');
+
         } catch (error) {
             console.error('Logout error:', error);
             if (this.notificationComponent) {
