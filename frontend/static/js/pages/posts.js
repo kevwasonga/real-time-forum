@@ -692,7 +692,7 @@ window.PostsPage = {
                 <form class="comment-form" data-post-id="${postId}">
                     <div class="comment-input-group">
                         <img src="${window.forumApp.currentUser.avatarUrl || '/static/images/default-avatar.png'}"
-                             alt="Your avatar"
+                             alt=""
                              class="comment-form-avatar">
                         <textarea
                             class="comment-textarea"
