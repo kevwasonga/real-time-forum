@@ -342,7 +342,7 @@ window.PostsPage = {
                             <h4>Comments (${comments.length})</h4>
                         </div>
                         <div class="comments-list">
-                            ${comments.map(comment => this.renderComment(comment)).join('')}
+                            ${this.renderCommentsTree(comments)}
                         </div>
                         ${this.renderCommentForm(postId)}
                     `;
@@ -374,12 +374,54 @@ window.PostsPage = {
         }
     },
 
-    renderComment(comment) {
+    renderCommentsTree(comments) {
+        // Organize comments into a tree structure
+        const commentMap = new Map();
+        const rootComments = [];
+
+        // First pass: create a map of all comments
+        comments.forEach(comment => {
+            comment.replies = [];
+            commentMap.set(comment.id, comment);
+        });
+
+        // Second pass: organize into tree structure
+        comments.forEach(comment => {
+            if (comment.parentId) {
+                const parent = commentMap.get(comment.parentId);
+                if (parent) {
+                    parent.replies.push(comment);
+                } else {
+                    // Parent not found, treat as root comment
+                    rootComments.push(comment);
+                }
+            } else {
+                rootComments.push(comment);
+            }
+        });
+
+        // Render the tree
+        return rootComments.map(comment => this.renderComment(comment)).join('');
+    },
+
+    renderComment(comment, depth = 0) {
         const timeAgo = window.utils.formatDate(comment.createdAt);
         const isOwnComment = window.forumApp.currentUser && comment.userId === window.forumApp.currentUser.id;
+        const maxDepth = 3; // Limit nesting depth to prevent excessive indentation
+        const actualDepth = Math.min(depth, maxDepth);
+        const indentClass = actualDepth > 0 ? `comment-reply comment-depth-${actualDepth}` : '';
+
+        let repliesHtml = '';
+        if (comment.replies && comment.replies.length > 0) {
+            repliesHtml = `
+                <div class="comment-replies">
+                    ${comment.replies.map(reply => this.renderComment(reply, depth + 1)).join('')}
+                </div>
+            `;
+        }
 
         return `
-            <div class="comment-item" data-comment-id="${comment.id}">
+            <div class="comment-item ${indentClass}" data-comment-id="${comment.id}">
                 <div class="comment-header">
                     <img src="${comment.authorAvatar || '/static/images/default-avatar.png'}"
                          alt="${window.utils.escapeHtml(comment.author)}'s avatar"
@@ -387,6 +429,7 @@ window.PostsPage = {
                     <div class="comment-meta">
                         <span class="comment-author">${window.utils.escapeHtml(comment.author)}</span>
                         <span class="comment-time">${timeAgo}</span>
+                        ${comment.parentId ? '<span class="reply-indicator">↳ Reply</span>' : ''}
                     </div>
                 </div>
                 <div class="comment-content" data-original-content="${window.utils.escapeHtml(comment.content)}">
@@ -401,6 +444,12 @@ window.PostsPage = {
                             data-comment-id="${comment.id}" data-action="dislike">
                         👎 ${comment.dislikeCount || 0}
                     </button>
+                    ${window.forumApp.currentUser && depth < maxDepth ? `
+                        <button class="comment-action-btn reply-comment-btn"
+                                data-comment-id="${comment.id}" data-post-id="${comment.postId}">
+                            💬 Reply
+                        </button>
+                    ` : ''}
                     ${isOwnComment ? `
                         <button class="comment-action-btn edit-comment-btn"
                                 data-comment-id="${comment.id}">
@@ -412,6 +461,8 @@ window.PostsPage = {
                         </button>
                     ` : ''}
                 </div>
+                <div class="reply-form-container" id="reply-form-${comment.id}" style="display: none;"></div>
+                ${repliesHtml}
             </div>
         `;
     },
@@ -554,6 +605,12 @@ window.PostsPage = {
         const deleteButtons = document.querySelectorAll('.delete-comment-btn');
         deleteButtons.forEach(button => {
             button.addEventListener('click', this.handleCommentDelete.bind(this));
+        });
+
+        // Reply buttons
+        const replyButtons = document.querySelectorAll('.reply-comment-btn');
+        replyButtons.forEach(button => {
+            button.addEventListener('click', this.handleCommentReply.bind(this));
         });
     },
 
@@ -780,6 +837,149 @@ window.PostsPage = {
             if (window.forumApp.notificationComponent) {
                 window.forumApp.notificationComponent.error(error.message || 'Failed to delete comment');
             }
+        }
+    },
+
+    handleCommentReply(event) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const button = event.currentTarget;
+        const commentId = button.dataset.commentId;
+        const postId = button.dataset.postId;
+
+        // Check if reply form is already open
+        const replyFormContainer = document.getElementById(`reply-form-${commentId}`);
+        if (!replyFormContainer) {
+            console.error('Reply form container not found');
+            return;
+        }
+
+        // Toggle reply form visibility
+        if (replyFormContainer.style.display === 'none') {
+            // Show reply form
+            replyFormContainer.style.display = 'block';
+            replyFormContainer.innerHTML = this.renderReplyForm(postId, commentId);
+
+            // Bind the reply form events
+            const replyForm = replyFormContainer.querySelector('.reply-form');
+            if (replyForm) {
+                replyForm.addEventListener('submit', this.handleReplySubmit.bind(this));
+
+                // Auto-resize textarea
+                const textarea = replyForm.querySelector('.reply-textarea');
+                if (textarea) {
+                    textarea.addEventListener('input', () => {
+                        textarea.style.height = 'auto';
+                        textarea.style.height = Math.min(textarea.scrollHeight, 80) + 'px';
+                    });
+                    textarea.focus(); // Focus on the textarea
+                }
+            }
+
+            // Update button text
+            button.textContent = '❌ Cancel Reply';
+        } else {
+            // Hide reply form
+            replyFormContainer.style.display = 'none';
+            replyFormContainer.innerHTML = '';
+
+            // Reset button text
+            button.textContent = '💬 Reply';
+        }
+    },
+
+    renderReplyForm(postId, parentId) {
+        return `
+            <form class="reply-form" data-post-id="${postId}" data-parent-id="${parentId}">
+                <div class="reply-form-header">
+                    <span class="reply-indicator">↳ Replying to comment</span>
+                </div>
+                <div class="reply-form-body">
+                    <textarea class="reply-textarea"
+                              placeholder="Write your reply..."
+                              required
+                              maxlength="1000"></textarea>
+                    <div class="reply-form-actions">
+                        <button type="submit" class="btn btn-primary reply-submit-btn">
+                            💬 Post Reply
+                        </button>
+                        <button type="button" class="btn btn-secondary reply-cancel-btn"
+                                onclick="this.closest('.reply-form-container').style.display='none';
+                                         this.closest('.comment-item').querySelector('.reply-comment-btn').textContent='💬 Reply';">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </form>
+        `;
+    },
+
+    async handleReplySubmit(event) {
+        event.preventDefault();
+
+        const form = event.target;
+        const postId = parseInt(form.dataset.postId);
+        const parentId = parseInt(form.dataset.parentId);
+        const textarea = form.querySelector('.reply-textarea');
+        const content = textarea.value.trim();
+
+        if (!content) {
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.warning('Please enter a reply');
+            }
+            return;
+        }
+
+        const submitButton = form.querySelector('.reply-submit-btn');
+        const originalText = submitButton.textContent;
+        submitButton.textContent = 'Posting...';
+        submitButton.disabled = true;
+
+        try {
+            const response = await fetch('/api/comment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    postId: postId,
+                    parentId: parentId,
+                    content: content
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Hide the reply form
+                const replyFormContainer = form.closest('.reply-form-container');
+                replyFormContainer.style.display = 'none';
+                replyFormContainer.innerHTML = '';
+
+                // Reset the reply button
+                const replyButton = form.closest('.comment-item').querySelector('.reply-comment-btn');
+                if (replyButton) {
+                    replyButton.textContent = '💬 Reply';
+                }
+
+                // Reload comments to show the new reply
+                await this.loadComments(postId);
+
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.success('Reply posted successfully');
+                }
+            } else {
+                throw new Error(result.error || 'Failed to post reply');
+            }
+        } catch (error) {
+            console.error('Failed to post reply:', error);
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error(error.message || 'Failed to post reply');
+            }
+        } finally {
+            submitButton.textContent = originalText;
+            submitButton.disabled = false;
         }
     },
 
