@@ -174,6 +174,11 @@ window.PostsPage = {
                                 title="Toggle comments">
                             💬 ${post.commentCount}
                         </button>
+                        <button class="stat-btn share-btn"
+                                data-post-id="${post.id}"
+                                title="Share post">
+                            🔗 Share
+                        </button>
                     </div>
 
                 </div>
@@ -201,6 +206,12 @@ window.PostsPage = {
         const commentToggleButtons = document.querySelectorAll('.comment-toggle-btn');
         commentToggleButtons.forEach(button => {
             button.addEventListener('click', this.handleCommentToggle.bind(this));
+        });
+
+        // Bind share buttons
+        const shareButtons = document.querySelectorAll('.share-btn');
+        shareButtons.forEach(button => {
+            button.addEventListener('click', this.handleShare.bind(this));
         });
     },
 
@@ -769,6 +780,130 @@ window.PostsPage = {
             if (window.forumApp.notificationComponent) {
                 window.forumApp.notificationComponent.error(error.message || 'Failed to delete comment');
             }
+        }
+    },
+
+    async handleShare(event) {
+        if (!window.auth.isLoggedIn()) {
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.warning('Please log in to share posts');
+            }
+            return;
+        }
+
+        const button = event.target;
+        const postId = parseInt(button.dataset.postId);
+
+        try {
+            // Get share data from API
+            const response = await fetch('/api/share', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    postId: postId,
+                    method: 'link'
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.showShareModal(result.data);
+            } else {
+                throw new Error(result.error || 'Failed to generate share link');
+            }
+        } catch (error) {
+            console.error('Failed to share post:', error);
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error(error.message || 'Failed to share post');
+            }
+        }
+    },
+
+    showShareModal(shareData) {
+        // Create modal HTML
+        const modalHTML = `
+            <div class="modal-overlay" id="share-modal">
+                <div class="modal-content share-modal">
+                    <div class="modal-header">
+                        <h3>Share Post</h3>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="share-post-info">
+                            <h4>${window.utils.escapeHtml(shareData.post.title)}</h4>
+                            <p class="post-author">by ${window.utils.escapeHtml(shareData.post.author)}</p>
+                            <p class="post-excerpt">${window.utils.escapeHtml(shareData.post.excerpt)}</p>
+                        </div>
+
+                        <div class="share-options">
+                            <div class="share-link-section">
+                                <label for="share-url">Share Link:</label>
+                                <div class="share-url-container">
+                                    <input type="text" id="share-url" value="${shareData.shareUrl}" readonly>
+                                    <button class="btn btn-secondary copy-btn" onclick="window.PostsPage.copyToClipboard('${shareData.shareUrl}')">
+                                        📋 Copy
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="social-share-section">
+                                <h4>Share on Social Media:</h4>
+                                <div class="social-buttons">
+                                    <a href="${shareData.socialLinks.twitter}" target="_blank" class="social-btn twitter-btn">
+                                        🐦 Twitter
+                                    </a>
+                                    <a href="${shareData.socialLinks.facebook}" target="_blank" class="social-btn facebook-btn">
+                                        📘 Facebook
+                                    </a>
+                                    <a href="${shareData.socialLinks.linkedin}" target="_blank" class="social-btn linkedin-btn">
+                                        💼 LinkedIn
+                                    </a>
+                                    <a href="${shareData.socialLinks.reddit}" target="_blank" class="social-btn reddit-btn">
+                                        🔴 Reddit
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add modal to page
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Auto-select the URL for easy copying
+        const urlInput = document.getElementById('share-url');
+        urlInput.select();
+    },
+
+    async copyToClipboard(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.success('Link copied to clipboard!');
+            }
+        } catch (error) {
+            console.error('Failed to copy to clipboard:', error);
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.success('Link copied to clipboard!');
+                }
+            } catch (fallbackError) {
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.error('Failed to copy link');
+                }
+            }
+            document.body.removeChild(textArea);
         }
     }
 };

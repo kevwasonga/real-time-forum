@@ -431,10 +431,14 @@ func LikeHandler(w http.ResponseWriter, r *http.Request) {
 		if existingLike.IsLike == req.IsLike {
 			_, err = database.DB.Exec(`DELETE FROM likes WHERE id = ?`, existingLike.ID)
 		} else {
-			// Update existing like to opposite action
-			_, err = database.DB.Exec(`
-				UPDATE likes SET is_like = ? WHERE id = ?
-			`, req.IsLike, existingLike.ID)
+			// If clicking opposite action, first delete existing then create new
+			_, err = database.DB.Exec(`DELETE FROM likes WHERE id = ?`, existingLike.ID)
+			if err == nil {
+				_, err = database.DB.Exec(`
+					INSERT INTO likes (user_id, post_id, comment_id, is_like, created_at)
+					VALUES (?, ?, ?, ?, ?)
+				`, user.ID, req.PostID, req.CommentID, req.IsLike, time.Now())
+			}
 		}
 	} else {
 		// Create new like
@@ -511,6 +515,78 @@ func CategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	RenderSuccess(w, "Categories retrieved successfully", categories)
+}
+
+// SharePostHandler handles post sharing operations
+func SharePostHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("🔗 SharePostHandler - Method: %s, URL: %s", r.Method, r.URL.Path)
+
+	if r.Method != http.MethodPost {
+		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	user := auth.GetUserFromSession(r)
+	if user == nil {
+		log.Printf("❌ No user in session for share request")
+		RenderError(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		PostID int    `json:"postId"`
+		Method string `json:"method"` // "link", "copy", "social"
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("❌ Invalid request body: %v", err)
+		RenderError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	log.Printf("📝 Share request - PostID: %d, Method: %s", req.PostID, req.Method)
+
+	// Validate that the post exists
+	post, err := getPostByID(req.PostID)
+	if err != nil {
+		RenderError(w, "Post not found", http.StatusNotFound)
+		return
+	}
+
+	// Generate shareable URL
+	baseURL := getBaseURL(r)
+	shareURL := fmt.Sprintf("%s/post/%d", baseURL, req.PostID)
+
+	// Track sharing activity (optional - for analytics)
+	_, err = database.DB.Exec(`
+		INSERT INTO post_shares (post_id, user_id, share_method, created_at)
+		VALUES (?, ?, ?, ?)
+	`, req.PostID, user.ID, req.Method, time.Now())
+
+	if err != nil {
+		log.Printf("⚠️ Warning: Failed to track share activity: %v", err)
+		// Don't fail the request if tracking fails
+	}
+
+	// Prepare response with sharing options
+	response := map[string]interface{}{
+		"shareUrl": shareURL,
+		"post": map[string]interface{}{
+			"id":      post.ID,
+			"title":   post.Title,
+			"author":  post.Author,
+			"excerpt": truncateText(post.Content, 150),
+		},
+		"socialLinks": map[string]string{
+			"twitter": fmt.Sprintf("https://twitter.com/intent/tweet?text=%s&url=%s",
+				fmt.Sprintf("Check out this post: %s", post.Title), shareURL),
+			"facebook": fmt.Sprintf("https://www.facebook.com/sharer/sharer.php?u=%s", shareURL),
+			"linkedin": fmt.Sprintf("https://www.linkedin.com/sharing/share-offsite/?url=%s", shareURL),
+			"reddit":   fmt.Sprintf("https://reddit.com/submit?url=%s&title=%s", shareURL, post.Title),
+		},
+	}
+
+	RenderSuccess(w, "Share URL generated successfully", response)
 }
 
 // Helper functions for post handlers
@@ -605,4 +681,21 @@ func getCommentByID(commentID int) (*models.Comment, error) {
 	}
 
 	return &comment, nil
+}
+
+// getBaseURL extracts the base URL from the request
+func getBaseURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	return fmt.Sprintf("%s://%s", scheme, r.Host)
+}
+
+// truncateText truncates text to a specified length with ellipsis
+func truncateText(text string, maxLength int) string {
+	if len(text) <= maxLength {
+		return text
+	}
+	return text[:maxLength-3] + "..."
 }

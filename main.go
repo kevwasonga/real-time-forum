@@ -88,6 +88,7 @@ func setupRoutes() {
 		w.Write([]byte(`{"success": true, "message": "Test endpoint working"}`))
 	})
 	http.HandleFunc("/api/like", handlers.LikeHandler)
+	http.HandleFunc("/api/share", handlers.SharePostHandler)
 	http.HandleFunc("/api/messages", handlers.MessagesHandler)
 	http.HandleFunc("/api/messages/", handlers.MessageHandler)
 	http.HandleFunc("/api/users", handlers.UsersHandler)

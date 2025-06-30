@@ -202,6 +202,18 @@ func createTables() error {
 		FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
 
+	// Post shares table for tracking sharing activity
+	postSharesTable := `
+	CREATE TABLE IF NOT EXISTS post_shares (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		post_id INTEGER NOT NULL,
+		user_id TEXT NOT NULL,
+		share_method TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	);`
+
 	tables := []string{
 		usersTable,
 		googleAuthTable,
@@ -215,6 +227,7 @@ func createTables() error {
 		friendsTable,
 		onlineUsersTable,
 		privateMessagesTable,
+		postSharesTable,
 	}
 
 	for _, table := range tables {
