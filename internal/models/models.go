@@ -4,19 +4,19 @@ import "time"
 
 // User represents a user in the system with comprehensive profile information
 type User struct {
-	ID          string    `json:"id" db:"id"`
-	Email       string    `json:"email" db:"email"`
-	Nickname    string    `json:"nickname" db:"nickname"`
-	Password    string    `json:"-" db:"password"` // Never expose password in JSON
-	FirstName   string    `json:"firstName" db:"first_name"`
-	LastName    string    `json:"lastName" db:"last_name"`
-	Age         int       `json:"age" db:"age"`
-	Gender      string    `json:"gender" db:"gender"`
-	GoogleID    *string   `json:"googleId,omitempty" db:"google_id"`
-	GithubID    *string   `json:"githubId,omitempty" db:"github_id"`
-	AvatarURL   *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
-	CreatedAt   time.Time `json:"createdAt" db:"created_at"`
-	UpdatedAt   time.Time `json:"updatedAt" db:"updated_at"`
+	ID        string    `json:"id" db:"id"`
+	Email     string    `json:"email" db:"email"`
+	Nickname  string    `json:"nickname" db:"nickname"`
+	Password  string    `json:"-" db:"password"` // Never expose password in JSON
+	FirstName string    `json:"firstName" db:"first_name"`
+	LastName  string    `json:"lastName" db:"last_name"`
+	Age       int       `json:"age" db:"age"`
+	Gender    string    `json:"gender" db:"gender"`
+	GoogleID  *string   `json:"googleId,omitempty" db:"google_id"`
+	GithubID  *string   `json:"githubId,omitempty" db:"github_id"`
+	AvatarURL *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
+	CreatedAt time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt time.Time `json:"updatedAt" db:"updated_at"`
 }
 
 // Post represents a forum post with enhanced features
@@ -58,13 +58,13 @@ type Comment struct {
 
 // Message represents a private message between users
 type Message struct {
-	ID           int       `json:"id" db:"id"`
-	SenderID     string    `json:"senderId" db:"sender_id"`
-	ReceiverID   string    `json:"receiverId" db:"receiver_id"`
-	Content      string    `json:"content" db:"content"`
-	SenderName   string    `json:"senderName" db:"sender_nickname"`
-	ReceiverName string    `json:"receiverName" db:"receiver_nickname"`
-	CreatedAt    time.Time `json:"createdAt" db:"created_at"`
+	ID           int        `json:"id" db:"id"`
+	SenderID     string     `json:"senderId" db:"sender_id"`
+	ReceiverID   string     `json:"receiverId" db:"receiver_id"`
+	Content      string     `json:"content" db:"content"`
+	SenderName   string     `json:"senderName" db:"sender_nickname"`
+	ReceiverName string     `json:"receiverName" db:"receiver_nickname"`
+	CreatedAt    time.Time  `json:"createdAt" db:"created_at"`
 	ReadAt       *time.Time `json:"readAt,omitempty" db:"read_at"`
 }
 
@@ -219,4 +219,19 @@ type UserStatusData struct {
 	UserID   string `json:"userId"`
 	Nickname string `json:"nickname"`
 	Status   string `json:"status"` // "online" or "offline"
+}
+
+// SearchResult represents a search result item
+type SearchResult struct {
+	ID           int                    `json:"id"`
+	Type         string                 `json:"type"` // "post", "comment", "user"
+	Title        string                 `json:"title"`
+	Content      string                 `json:"content"`
+	Excerpt      string                 `json:"excerpt"`
+	URL          string                 `json:"url"`
+	Author       string                 `json:"author"`
+	AuthorAvatar string                 `json:"authorAvatar,omitempty"`
+	UserID       string                 `json:"userId"`
+	CreatedAt    time.Time              `json:"createdAt"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }

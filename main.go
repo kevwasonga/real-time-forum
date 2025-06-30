@@ -89,6 +89,7 @@ func setupRoutes() {
 	})
 	http.HandleFunc("/api/like", handlers.LikeHandler)
 	http.HandleFunc("/api/share", handlers.SharePostHandler)
+	http.HandleFunc("/api/search", handlers.SearchHandler)
 	http.HandleFunc("/api/messages", handlers.MessagesHandler)
 	http.HandleFunc("/api/messages/", handlers.MessageHandler)
 	http.HandleFunc("/api/users", handlers.UsersHandler)

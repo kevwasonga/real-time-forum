@@ -3,78 +3,258 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Real-time discussion platform for community engagement and knowledge sharing">
+    <meta name="keywords" content="forum, discussion, community, real-time, chat, posts, comments">
+    <meta name="author" content="Forum Team">
+    <meta name="theme-color" content="#1a73e8">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="/">
+    <meta property="og:title" content="Forum - Real-time Discussion Platform">
+    <meta property="og:description" content="Join our community for real-time discussions and knowledge sharing">
+    <meta property="og:image" content="/static/images/og-image.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="/">
+    <meta property="twitter:title" content="Forum - Real-time Discussion Platform">
+    <meta property="twitter:description" content="Join our community for real-time discussions and knowledge sharing">
+    <meta property="twitter:image" content="/static/images/og-image.png">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+
     <title>Forum - Real-time Discussion Platform</title>
     <link rel="stylesheet" href="/static/css/main.css">
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="apple-touch-icon" href="/static/images/icon-192x192.png">
+
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/static/css/main.css" as="style">
+    <link rel="preload" href="/static/js/core/app.js" as="script">
 </head>
 <body>
-    <div id="app" class="app-container">
+    <!-- Skip to main content link for screen readers -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <!-- Theme toggle button -->
+    <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark/light theme" title="Toggle theme">
+        <span class="theme-icon">🌙</span>
+    </button>
+
+    <div id="app" class="app-container" role="application" aria-label="Forum Application">
         <!-- Loading screen -->
-        <div id="loading-screen" class="loading-screen">
-            <div class="loading-spinner"></div>
+        <div id="loading-screen" class="loading-screen" role="status" aria-live="polite">
+            <div class="loading-spinner" aria-hidden="true"></div>
             <p>Loading Forum...</p>
         </div>
 
         <!-- Header -->
-        <header id="header" class="header" style="display: none;">
+        <header id="header" class="header" style="display: none;" role="banner">
             <div class="header-content">
                 <div class="header-left">
                     <h1 class="logo">
-                        <a href="/" data-route="/">🌐 Forum</a>
+                        <a href="/" data-route="/" aria-label="Forum Home">🌐 Forum</a>
                     </h1>
                 </div>
-                
-                <nav class="header-nav">
-                    <a href="/" data-route="/" class="nav-link">Home</a>
-                    <a href="/posts" data-route="/posts" class="nav-link">Posts</a>
-                    <a href="/messages" data-route="/messages" class="nav-link">Messages</a>
-                    <a href="/friends" data-route="/friends" class="nav-link">Friends</a>
-                      <a id="logout-btn" class="logout-btn">Logout</a>
+
+                <nav class="header-nav" role="navigation" aria-label="Main navigation">
+                    <a href="/" data-route="/" class="nav-link" aria-current="page">
+                        <span class="nav-icon" aria-hidden="true">🏠</span>
+                        <span>Home</span>
+                    </a>
+                    <a href="/posts" data-route="/posts" class="nav-link">
+                        <span class="nav-icon" aria-hidden="true">📝</span>
+                        <span>Posts</span>
+                    </a>
+                    <a href="/messages" data-route="/messages" class="nav-link">
+                        <span class="nav-icon" aria-hidden="true">💬</span>
+                        <span>Messages</span>
+                    </a>
+                    <a href="/friends" data-route="/friends" class="nav-link">
+                        <span class="nav-icon" aria-hidden="true">👥</span>
+                        <span>Friends</span>
+                    </a>
+                    <button id="logout-btn" class="logout-btn" aria-label="Logout from forum">
+                        <span class="nav-icon" aria-hidden="true">🚪</span>
+                        <span>Logout</span>
+                    </button>
                 </nav>
 
                 <div class="header-right">
+                    <!-- Search bar -->
+                    <div class="search-container">
+                        <form class="search-form" role="search" aria-label="Search posts and comments">
+                            <input type="search"
+                                   id="global-search"
+                                   class="search-input"
+                                   placeholder="Search posts, comments..."
+                                   aria-label="Search posts and comments"
+                                   autocomplete="off">
+                            <button type="submit" class="search-btn" aria-label="Submit search">
+                                <span aria-hidden="true">🔍</span>
+                            </button>
+                        </form>
+                        <div id="search-results" class="search-results" role="listbox" aria-hidden="true"></div>
+                    </div>
+
                     <div id="user-menu" class="user-menu" style="display: none;">
                         <div class="user-avatar-container">
-                            <button class="user-avatar" id="user-avatar-btn">
-                                <img id="user-avatar" src="/static/images/default-avatar.svg" alt="User Avatar">
+                            <button class="user-avatar"
+                                    id="user-avatar-btn"
+                                    aria-expanded="false"
+                                    aria-haspopup="true"
+                                    aria-label="User menu">
+                                <img id="user-avatar" src="/static/images/default-avatar.svg" alt="">
                                 <span id="user-nickname">User</span>
+                                <span class="dropdown-arrow" aria-hidden="true">▼</span>
                             </button>
-                            <div class="user-dropdown" id="user-dropdown">
-                                <a href="/profile" data-route="/profile">Profile</a>
-                                <a href="/settings" data-route="/settings">Settings</a>
+                            <div class="user-dropdown"
+                                 id="user-dropdown"
+                                 role="menu"
+                                 aria-hidden="true">
+                                <a href="/profile" data-route="/profile" role="menuitem">
+                                    <span aria-hidden="true">👤</span> Profile
+                                </a>
+                                <a href="/settings" data-route="/settings" role="menuitem">
+                                    <span aria-hidden="true">⚙️</span> Settings
+                                </a>
+                                <button id="notifications-btn" role="menuitem">
+                                    <span aria-hidden="true">🔔</span> Notifications
+                                    <span id="notification-count" class="notification-badge" aria-label="unread notifications"></span>
+                                </button>
                             </div>
                         </div>
-                        <!-- <button id="logout-btn" class="logout-btn">Logout</button> -->
                     </div>
 
                     <div id="auth-buttons" class="auth-buttons">
-                        <a href="/login" data-route="/login" class="btn btn-outline">Login</a>
-                        <a href="/register" data-route="/register" class="btn btn-primary">Register</a>
+                        <a href="/login" data-route="/login" class="btn btn-outline">
+                            <span aria-hidden="true">🔑</span> Login
+                        </a>
+                        <a href="/register" data-route="/register" class="btn btn-primary">
+                            <span aria-hidden="true">📝</span> Register
+                        </a>
                     </div>
                 </div>
             </div>
         </header>
 
         <!-- Main content area -->
-        <main id="main-content" class="main-content" style="display: none;">
+        <main id="main-content" class="main-content" style="display: none;" role="main" tabindex="-1">
+            <!-- Breadcrumb navigation -->
+            <nav aria-label="Breadcrumb" class="breadcrumb-nav">
+                <ol class="breadcrumb" id="breadcrumb"></ol>
+            </nav>
+
             <!-- Content will be dynamically loaded here -->
+            <div id="content-area" class="content-area"></div>
         </main>
 
         <!-- Sidebar for online users -->
-        <aside id="sidebar" class="sidebar" style="display: none;">
+        <aside id="sidebar" class="sidebar" style="display: none;" role="complementary" aria-label="Online users and quick actions">
             <div class="sidebar-section">
                 <h3>Online Users (<span id="online-count">0</span>)</h3>
-                <div id="online-users" class="online-users-list">
+                <div id="online-users" class="online-users-list" role="list">
                     <!-- Online users will be populated here -->
+                </div>
+            </div>
+
+            <!-- Quick actions -->
+            <div class="sidebar-section">
+                <h3>Quick Actions</h3>
+                <div class="quick-actions">
+                    <button class="quick-action-btn" data-action="new-post" aria-label="Create new post">
+                        <span aria-hidden="true">📝</span> New Post
+                    </button>
+                    <button class="quick-action-btn" data-action="search" aria-label="Search posts">
+                        <span aria-hidden="true">🔍</span> Search
+                    </button>
+                    <button class="quick-action-btn" data-action="notifications" aria-label="View notifications">
+                        <span aria-hidden="true">🔔</span> Notifications
+                    </button>
                 </div>
             </div>
         </aside>
 
-        <!-- Chat functionality is now integrated into the messages page -->
+        <!-- Footer -->
+        <footer class="footer" role="contentinfo">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>Forum</h3>
+                    <p>Real-time discussion platform for community engagement</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="/posts" data-route="/posts">Browse Posts</a></li>
+                        <li><a href="/create-post" data-route="/create-post">Create Post</a></li>
+                        <li><a href="/friends" data-route="/friends">Find Friends</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Support</h4>
+                    <ul>
+                        <li><a href="/help" data-route="/help">Help Center</a></li>
+                        <li><a href="/guidelines" data-route="/guidelines">Community Guidelines</a></li>
+                        <li><a href="/contact" data-route="/contact">Contact Us</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 Forum. All rights reserved.</p>
+                <div class="footer-links">
+                    <a href="/privacy" data-route="/privacy">Privacy Policy</a>
+                    <a href="/terms" data-route="/terms">Terms of Service</a>
+                    <a href="/accessibility" data-route="/accessibility">Accessibility</a>
+                </div>
+            </div>
+        </footer>
 
         <!-- Notification container -->
-        <div id="notifications" class="notifications-container">
+        <div id="notifications" class="notifications-container" role="status" aria-live="polite">
             <!-- Notifications will be added here -->
+        </div>
+
+        <!-- Modal container -->
+        <div id="modal-container" class="modal-container" role="dialog" aria-hidden="true"></div>
+
+        <!-- Keyboard shortcuts help -->
+        <div id="keyboard-help" class="keyboard-help" role="dialog" aria-hidden="true" aria-labelledby="keyboard-help-title">
+            <div class="keyboard-help-content">
+                <h2 id="keyboard-help-title">Keyboard Shortcuts</h2>
+                <div class="shortcuts-grid">
+                    <div class="shortcut-item">
+                        <kbd>?</kbd>
+                        <span>Show this help</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>/</kbd>
+                        <span>Focus search</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>n</kbd>
+                        <span>New post</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>h</kbd>
+                        <span>Go to home</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>p</kbd>
+                        <span>Go to posts</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>m</kbd>
+                        <span>Go to messages</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Esc</kbd>
+                        <span>Close dialogs</span>
+                    </div>
+                </div>
+                <button class="close-help" aria-label="Close keyboard shortcuts help">×</button>
+            </div>
         </div>
     </div>
 
@@ -86,8 +266,11 @@
     <script src="/static/js/router.js"></script>
     <script src="/static/js/components/header.js"></script>
     <script src="/static/js/components/sidebar.js"></script>
-    <!-- Chat functionality integrated into messages page -->
     <script src="/static/js/components/notifications.js"></script>
+    <script src="/static/js/components/search.js"></script>
+    <script src="/static/js/components/accessibility.js"></script>
+    <script src="/static/js/components/theme.js"></script>
+    <script src="/static/js/components/keyboard.js"></script>
     <script src="/static/js/pages/home.js"></script>
     <script src="/static/js/pages/login.js"></script>
     <script src="/static/js/pages/register.js"></script>

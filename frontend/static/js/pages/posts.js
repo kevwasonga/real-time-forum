@@ -305,7 +305,7 @@ window.PostsPage = {
         }
     },
 
-    async loadCommentsForPost(postId) {
+    async loadCommentsForPost(postId, sortBy = null) {
         const commentsSection = document.getElementById(`comments-${postId}`);
         if (!commentsSection) return;
 
@@ -315,8 +315,13 @@ window.PostsPage = {
             // Show loading state
             commentsSection.innerHTML = '<div class="comments-loading">Loading comments...</div>';
 
+            // Use stored preference if no sort specified
+            if (!sortBy) {
+                sortBy = localStorage.getItem('comment-sort-preference') || 'newest';
+            }
+
             // Fetch comments from API
-            const response = await window.api.getComments(postId);
+            const response = await window.api.getComments(postId, sortBy);
             console.log('📡 Comments API response:', response);
             console.log('📡 Response success:', response.success);
             console.log('📡 Response data:', response.data);
@@ -341,6 +346,23 @@ window.PostsPage = {
                         <div class="comments-header">
                             <h4>Comments (${comments.length})</h4>
                         </div>
+                        <div class="comments-header">
+                            <h3>Comments (${comments.length})</h3>
+                            <div class="comments-controls">
+                                <button class="btn btn-sm expand-all-btn" onclick="window.postsPage.expandAllThreads()">
+                                    📖 Expand All
+                                </button>
+                                <button class="btn btn-sm collapse-all-btn" onclick="window.postsPage.collapseAllThreads()">
+                                    📕 Collapse All
+                                </button>
+                                <select class="comment-sort-select" onchange="window.postsPage.sortComments(this.value)">
+                                    <option value="newest">Newest First</option>
+                                    <option value="oldest">Oldest First</option>
+                                    <option value="most-liked">Most Liked</option>
+                                    <option value="most-replies">Most Replies</option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="comments-list">
                             ${this.renderCommentsTree(comments)}
                         </div>
@@ -350,6 +372,9 @@ window.PostsPage = {
 
                 // Bind comment form events after rendering
                 this.bindCommentFormEvents();
+
+                // Add thread controls for collapse/expand
+                setTimeout(() => this.addThreadControls(), 100);
             } else {
                 console.error('❌ API response failed:', response);
                 // Even on API failure, show the comment form for posts that exist
@@ -411,6 +436,9 @@ window.PostsPage = {
         const actualDepth = Math.min(depth, maxDepth);
         const indentClass = actualDepth > 0 ? `comment-reply comment-depth-${actualDepth}` : '';
 
+        // Generate thread arrows for visual hierarchy
+        const threadArrows = this.generateThreadArrows(depth);
+
         let repliesHtml = '';
         if (comment.replies && comment.replies.length > 0) {
             repliesHtml = `
@@ -421,50 +449,230 @@ window.PostsPage = {
         }
 
         return `
-            <div class="comment-item ${indentClass}" data-comment-id="${comment.id}">
-                <div class="comment-header">
-                    <img src="${comment.authorAvatar || '/static/images/default-avatar.png'}"
-                         alt="${window.utils.escapeHtml(comment.author)}'s avatar"
-                         class="comment-avatar">
-                    <div class="comment-meta">
-                        <span class="comment-author">${window.utils.escapeHtml(comment.author)}</span>
-                        <span class="comment-time">${timeAgo}</span>
-                        ${comment.parentId ? '<span class="reply-indicator">↳ Reply</span>' : ''}
+            <div class="comment-item ${indentClass}" data-comment-id="${comment.id}" data-depth="${depth}">
+                ${threadArrows}
+                <div class="comment-content-wrapper">
+                    <div class="comment-header">
+                        <img src="${comment.authorAvatar || '/static/images/default-avatar.png'}"
+                             alt="${window.utils.escapeHtml(comment.author)}'s avatar"
+                             class="comment-avatar">
+                        <div class="comment-meta">
+                            <span class="comment-author">${window.utils.escapeHtml(comment.author)}</span>
+                            <span class="comment-time">${timeAgo}</span>
+                            ${comment.parentId ? '<span class="reply-indicator">↳ Reply</span>' : ''}
+                        </div>
                     </div>
-                </div>
-                <div class="comment-content" data-original-content="${window.utils.escapeHtml(comment.content)}">
-                    ${window.utils.escapeHtml(comment.content)}
-                </div>
-                <div class="comment-actions">
-                    <button class="comment-action-btn like-comment-btn ${comment.userLiked ? 'active' : ''}"
-                            data-comment-id="${comment.id}" data-action="like">
-                        👍 ${comment.likeCount || 0}
-                    </button>
-                    <button class="comment-action-btn dislike-comment-btn ${comment.userDisliked ? 'active' : ''}"
-                            data-comment-id="${comment.id}" data-action="dislike">
-                        👎 ${comment.dislikeCount || 0}
-                    </button>
-                    ${window.forumApp.currentUser && depth < maxDepth ? `
-                        <button class="comment-action-btn reply-comment-btn"
-                                data-comment-id="${comment.id}" data-post-id="${comment.postId}">
-                            💬 Reply
+                    <div class="comment-content" data-original-content="${window.utils.escapeHtml(comment.content)}">
+                        ${window.utils.escapeHtml(comment.content)}
+                    </div>
+                    <div class="comment-actions">
+                        <button class="comment-action-btn like-comment-btn ${comment.userLiked ? 'active' : ''}"
+                                data-comment-id="${comment.id}" data-action="like">
+                            👍 ${comment.likeCount || 0}
                         </button>
-                    ` : ''}
-                    ${isOwnComment ? `
-                        <button class="comment-action-btn edit-comment-btn"
-                                data-comment-id="${comment.id}">
-                            ✏️ Edit
+                        <button class="comment-action-btn dislike-comment-btn ${comment.userDisliked ? 'active' : ''}"
+                                data-comment-id="${comment.id}" data-action="dislike">
+                            👎 ${comment.dislikeCount || 0}
                         </button>
-                        <button class="comment-action-btn delete-comment-btn"
-                                data-comment-id="${comment.id}">
-                            🗑️ Delete
-                        </button>
-                    ` : ''}
+                        ${window.forumApp.currentUser && depth < maxDepth ? `
+                            <button class="comment-action-btn reply-comment-btn"
+                                    data-comment-id="${comment.id}" data-post-id="${comment.postId}">
+                                💬 Reply
+                            </button>
+                        ` : ''}
+                        ${isOwnComment ? `
+                            <button class="comment-action-btn edit-comment-btn"
+                                    data-comment-id="${comment.id}">
+                                ✏️ Edit
+                            </button>
+                            <button class="comment-action-btn delete-comment-btn"
+                                    data-comment-id="${comment.id}">
+                                🗑️ Delete
+                            </button>
+                        ` : ''}
+                    </div>
+                    <div class="reply-form-container" id="reply-form-${comment.id}" style="display: none;"></div>
                 </div>
-                <div class="reply-form-container" id="reply-form-${comment.id}" style="display: none;"></div>
                 ${repliesHtml}
             </div>
         `;
+    },
+
+    generateThreadArrows(depth) {
+        if (depth === 0) return '';
+
+        let arrows = '<div class="thread-arrows">';
+
+        // Generate connecting lines and arrows for each level
+        for (let i = 0; i < depth; i++) {
+            if (i === depth - 1) {
+                // Last arrow - points to current comment
+                arrows += '<div class="thread-arrow thread-arrow-current" title="Reply to parent comment">└─</div>';
+            } else {
+                // Intermediate arrows - vertical lines for parent threads
+                arrows += '<div class="thread-arrow thread-arrow-parent" title="Thread continuation">│</div>';
+            }
+        }
+
+        arrows += '</div>';
+        return arrows;
+    },
+
+    // Add thread collapse/expand functionality
+    addThreadControls() {
+        // Add collapse/expand buttons to comments with replies
+        const commentsWithReplies = document.querySelectorAll('.comment-item:has(.comment-replies)');
+
+        commentsWithReplies.forEach(comment => {
+            const header = comment.querySelector('.comment-header');
+            if (header && !header.querySelector('.thread-toggle')) {
+                const replyCount = comment.querySelectorAll('.comment-replies .comment-item').length;
+                const toggleBtn = document.createElement('button');
+                toggleBtn.className = 'thread-toggle';
+                toggleBtn.innerHTML = `<span class="toggle-icon">▼</span> <span class="reply-count">${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}</span>`;
+                toggleBtn.setAttribute('aria-label', `Toggle ${replyCount} replies`);
+                toggleBtn.setAttribute('title', 'Click to collapse/expand replies');
+
+                toggleBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.toggleThread(comment);
+                });
+
+                header.appendChild(toggleBtn);
+            }
+        });
+
+        // Add thread highlighting functionality
+        this.addThreadHighlighting();
+    },
+
+    addThreadHighlighting() {
+        const allComments = document.querySelectorAll('.comment-item');
+
+        allComments.forEach(comment => {
+            comment.addEventListener('mouseenter', () => {
+                this.highlightThread(comment);
+            });
+
+            comment.addEventListener('mouseleave', () => {
+                this.clearThreadHighlight();
+            });
+        });
+    },
+
+    highlightThread(commentElement) {
+        // Clear any existing highlights
+        this.clearThreadHighlight();
+
+        // Get the depth
+        const depth = parseInt(commentElement.dataset.depth);
+
+        // Highlight the current comment
+        commentElement.classList.add('thread-highlighted');
+
+        // Highlight parent thread (if this is a reply)
+        if (depth > 0) {
+            let currentElement = commentElement;
+            let currentDepth = depth;
+
+            // Walk up the DOM to find parent comments
+            while (currentDepth > 0 && currentElement) {
+                currentElement = currentElement.parentElement.closest('.comment-item');
+                if (currentElement) {
+                    const parentDepth = parseInt(currentElement.dataset.depth);
+                    if (parentDepth < currentDepth) {
+                        currentElement.classList.add('thread-highlighted-parent');
+                        currentDepth = parentDepth;
+                    }
+                }
+            }
+        }
+
+        // Highlight all child replies
+        const childReplies = commentElement.querySelectorAll('.comment-item');
+        childReplies.forEach(child => {
+            child.classList.add('thread-highlighted-child');
+        });
+    },
+
+    clearThreadHighlight() {
+        const highlightedElements = document.querySelectorAll('.thread-highlighted, .thread-highlighted-parent, .thread-highlighted-child');
+        highlightedElements.forEach(element => {
+            element.classList.remove('thread-highlighted', 'thread-highlighted-parent', 'thread-highlighted-child');
+        });
+    },
+
+    expandAllThreads() {
+        const collapsedThreads = document.querySelectorAll('.thread-collapsed');
+        collapsedThreads.forEach(thread => {
+            this.toggleThread(thread);
+        });
+
+        if (window.forumApp.notificationComponent) {
+            window.forumApp.notificationComponent.success('All threads expanded');
+        }
+    },
+
+    collapseAllThreads() {
+        const expandedThreads = document.querySelectorAll('.comment-item:has(.comment-replies):not(.thread-collapsed)');
+        expandedThreads.forEach(thread => {
+            this.toggleThread(thread);
+        });
+
+        if (window.forumApp.notificationComponent) {
+            window.forumApp.notificationComponent.success('All threads collapsed');
+        }
+    },
+
+    sortComments(sortBy) {
+        const postId = this.getCurrentPostId();
+        if (!postId) return;
+
+        // Store current sort preference
+        localStorage.setItem('comment-sort-preference', sortBy);
+
+        // Reload comments with new sorting
+        this.loadComments(postId, sortBy);
+
+        if (window.forumApp.notificationComponent) {
+            const sortLabels = {
+                'newest': 'Newest First',
+                'oldest': 'Oldest First',
+                'most-liked': 'Most Liked',
+                'most-replies': 'Most Replies'
+            };
+            window.forumApp.notificationComponent.success(`Comments sorted by: ${sortLabels[sortBy]}`);
+        }
+    },
+
+    getCurrentPostId() {
+        const postElement = document.querySelector('.post-detail');
+        return postElement ? parseInt(postElement.dataset.postId) : null;
+    },
+
+    toggleThread(commentElement) {
+        const repliesContainer = commentElement.querySelector('.comment-replies');
+        const toggleBtn = commentElement.querySelector('.thread-toggle');
+        const toggleIcon = toggleBtn.querySelector('.toggle-icon');
+
+        if (repliesContainer) {
+            const isCollapsed = repliesContainer.style.display === 'none';
+
+            if (isCollapsed) {
+                // Expand
+                repliesContainer.style.display = 'block';
+                toggleIcon.textContent = '▼';
+                toggleBtn.setAttribute('aria-label', 'Collapse replies');
+                commentElement.classList.remove('thread-collapsed');
+            } else {
+                // Collapse
+                repliesContainer.style.display = 'none';
+                toggleIcon.textContent = '▶';
+                toggleBtn.setAttribute('aria-label', 'Expand replies');
+                commentElement.classList.add('thread-collapsed');
+            }
+        }
     },
 
     renderCommentForm(postId) {
