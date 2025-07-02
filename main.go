@@ -30,7 +30,7 @@ var validFrontendRoutes = map[string]bool{
 func main() {
 	// Initialize database
 	if err := database.Initialize(); err != nil {
-		log.Fatal("Failed to initialize database:", err)
+		log.Fatal("❌ Failed to initialize database:", err)
 	}
 	defer database.Close()
 
@@ -49,9 +49,16 @@ func main() {
 		port = "8080"
 	}
 
-	fmt.Printf("🚀 Forum starting on http://localhost:%s\n", port)
-	fmt.Printf("📊 Database: forum.db\n")
-	fmt.Printf("🌐 Frontend: Modern SPA with real-time features\n")
+	// Display startup information
+	fmt.Println("✅ Database initialized successfully")
+	fmt.Println("✅ WebSocket hub initialized")
+	fmt.Printf("🚀 Server starting on port %s\n", port)
+	fmt.Printf("🌐 Access the forum at: http://localhost:%s\n", port)
+	fmt.Println("📊 Database: forum.db")
+	fmt.Println("🌐 Frontend: Modern SPA with real-time features")
+	fmt.Println("💬 Real-time messaging enabled")
+	fmt.Println("👥 Online user tracking active")
+	fmt.Println("")
 
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
@@ -124,25 +131,4 @@ func setupRoutes() {
 		http.ServeFile(w, r, "frontend/static/index.html")
 	})
 
-	// Get port from environment or use default
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Printf("🚀 Server starting on port %s", port)
-	log.Printf("🌐 Access the forum at: http://localhost:%s", port)
-
-	// Add error recovery middleware
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Printf("🚨 Server panic recovered: %v", err)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			}
-		}()
-		http.DefaultServeMux.ServeHTTP(w, r)
-	})
-
-	log.Fatal(http.ListenAndServe(":"+port, handler))
 }

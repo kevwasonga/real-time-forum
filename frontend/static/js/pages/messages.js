@@ -111,10 +111,15 @@ window.MessagesPage = {
 
         console.log('👥 Rendering', users.length, 'online users');
 
-        // Debug each user object
+        // Debug each user object in extreme detail
         users.forEach((user, index) => {
-            console.log(`👤 User ${index}:`, user);
-            console.log(`👤 User ${index} ID:`, user.id);
+            console.log(`👤 User ${index} FULL OBJECT:`, JSON.stringify(user, null, 2));
+            console.log(`👤 User ${index} KEYS:`, Object.keys(user));
+            console.log(`👤 User ${index} VALUES:`, Object.values(user));
+            console.log(`👤 User ${index} .id:`, user.id);
+            console.log(`👤 User ${index} .userID:`, user.userID);
+            console.log(`👤 User ${index} .user_id:`, user.user_id);
+            console.log(`👤 User ${index} .ID:`, user.ID);
             console.log(`👤 User ${index} nickname:`, user.nickname);
         });
 
@@ -142,9 +147,16 @@ window.MessagesPage = {
 
         console.log('🏗️ Generated HTML:', container.innerHTML);
 
-        // Bind click events for online users
+        // Debug the actual DOM elements
         const userItems = container.querySelectorAll('.online-user-item');
-        console.log('🔗 Binding click events to', userItems.length, 'online user items');
+        console.log('🔗 Found', userItems.length, 'online user items in DOM');
+
+        userItems.forEach((item, index) => {
+            console.log(`🔗 Item ${index} dataset:`, item.dataset);
+            console.log(`🔗 Item ${index} data-user-id:`, item.dataset.userId);
+            console.log(`🔗 Item ${index} getAttribute('data-user-id'):`, item.getAttribute('data-user-id'));
+            console.log(`🔗 Item ${index} outerHTML:`, item.outerHTML);
+        });
 
         userItems.forEach((item, index) => {
             console.log(`🔗 Binding click event to item ${index}:`, item.dataset.userId);
