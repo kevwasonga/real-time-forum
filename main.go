@@ -131,6 +131,7 @@ func setupRoutes() {
 	}
 
 	log.Printf("🚀 Server starting on port %s", port)
+	log.Printf("🌐 Access the forum at: http://localhost:%s", port)
 
 	// Add error recovery middleware
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

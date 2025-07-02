@@ -205,18 +205,18 @@ window.MessagesPage = {
         console.log('🔄 selectConversation called with:', conversation);
         this.selectedConversation = conversation;
 
-        // Update UI to show active state
-        this.renderConversations(); // Re-render to show active state
+        // Update UI to show active state in conversations list
+        this.renderConversations();
 
-        // Load messages and render chat interface in main area
+        // Load messages for this conversation
+        console.log('📨 Loading messages for user:', conversation.userID);
         await this.loadMessages(conversation.userID);
 
-        // Force render messages if not already rendered
-        if (this.selectedConversation) {
-            this.renderMessages();
-        }
+        // Render the chat interface
+        console.log('🎨 Rendering chat interface');
+        this.renderMessages();
 
-        console.log('💬 Chat opened in main area for:', conversation.nickname);
+        console.log('✅ Chat opened successfully for:', conversation.nickname);
     },
 
     async loadMessages(userID) {
@@ -389,6 +389,8 @@ window.MessagesPage = {
 
 
     async startNewConversation(user) {
+        console.log('🚀 Starting new conversation with:', user.nickname);
+
         // Create a conversation object
         const conversation = {
             userID: user.id,
@@ -402,24 +404,19 @@ window.MessagesPage = {
         };
 
         // Add to conversations if not already there
-        if (!this.conversations.find(c => c.userID === user.id)) {
+        const existingConversation = this.conversations.find(c => c.userID === user.id);
+        if (!existingConversation) {
             this.conversations.unshift(conversation);
+            console.log(' Added new conversation to list');
+        } else {
+            console.log(' Using existing conversation');
         }
 
-        // Select the conversation
-        await this.selectConversation(conversation);
+        // Select the conversation (use existing one if found)
+        const conversationToSelect = existingConversation || conversation;
+        await this.selectConversation(conversationToSelect);
 
-        // Clear search
-        const searchInput = document.getElementById('user-search');
-        const searchResults = document.getElementById('user-search-results');
-        if (searchInput) searchInput.value = '';
-        if (searchResults) searchResults.innerHTML = '';
-        
-        // Hide search
-        const searchContainer = document.querySelector('.search-users');
-        if (searchContainer) {
-            searchContainer.classList.remove('active');
-        }
+        console.log('Conversation started successfully');
     },
 
     handleNewMessage(message) {
