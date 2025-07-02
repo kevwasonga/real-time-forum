@@ -18,52 +18,108 @@ window.MessagesPage = {
                 <div class="messages-sidebar">
                     <div class="messages-header">
                         <h2>Messages</h2>
-                        <button id="new-message-btn" class="btn btn-primary btn-sm">New Message</button>
                     </div>
-                    
-                    <div class="search-users">
-                        <input type="text" id="user-search" placeholder="Search users..." class="search-input">
-                        <div id="user-search-results" class="search-results"></div>
+
+                    <div class="online-users-section">
+                        <h3>Online Users</h3>
+                        <div id="online-users-list" class="online-users-list">
+                            <div class="loading-placeholder">Loading online users...</div>
+                        </div>
                     </div>
-                    
-                    <div id="conversations-list" class="conversations-list">
-                        <div class="loading-placeholder">Loading conversations...</div>
+
+                    <div class="recent-conversations-section">
+                        <h3>Recent Conversations</h3>
+                        <div id="conversations-list" class="conversations-list">
+                            <div class="loading-placeholder">Loading conversations...</div>
+                        </div>
                     </div>
                 </div>
-                
+
                 <div class="messages-main">
                     <div id="messages-content" class="messages-content">
                         <div class="no-conversation-selected">
-                            <h3>Select a conversation</h3>
-                            <p>Choose a conversation from the sidebar to start messaging</p>
-                            <button id="test-chat-btn" style="margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Test Chat Display</button>
+                            <h3>Select a user to start messaging</h3>
+                            <p>Choose an online user or recent conversation to start chatting</p>
                         </div>
                     </div>
                 </div>
             </div>
         `;
 
+        await this.loadOnlineUsers();
         await this.loadConversations();
         this.bindEvents();
     },
 
     bindEvents() {
-        const newMessageBtn = document.getElementById('new-message-btn');
-        if (newMessageBtn) {
-            newMessageBtn.addEventListener('click', this.toggleUserSearch.bind(this));
-        }
-
-        const userSearch = document.getElementById('user-search');
-        if (userSearch) {
-            userSearch.addEventListener('input', window.utils.debounce(this.searchUsers.bind(this), 300));
-        }
-
         // Listen for WebSocket messages
         if (window.forumApp?.websocket) {
             window.forumApp.websocket.addEventListener('private_message', (message) => {
                 this.handleNewMessage(message);
             });
         }
+    },
+
+    async loadOnlineUsers() {
+        try {
+            const response = await window.api.getOnlineUsers();
+            if (response.success) {
+                const onlineUsers = response.data || [];
+                // Filter out current user
+                const otherUsers = onlineUsers.filter(user =>
+                    window.forumApp.currentUser && user.id !== window.forumApp.currentUser.id
+                );
+                this.renderOnlineUsers(otherUsers);
+            }
+        } catch (error) {
+            console.error('Failed to load online users:', error);
+            const container = document.getElementById('online-users-list');
+            if (container) {
+                container.innerHTML = '<div class="error-message">Failed to load online users</div>';
+            }
+        }
+    },
+
+    renderOnlineUsers(users) {
+        const container = document.getElementById('online-users-list');
+        if (!container) return;
+
+        if (users.length === 0) {
+            container.innerHTML = '<div class="no-users">No other users online</div>';
+            return;
+        }
+
+        container.innerHTML = users.map(user => `
+            <div class="online-user-item" data-user-id="${user.id}">
+                <img src="${user.avatarURL || '/static/images/default-avatar.svg'}"
+                     alt="${window.utils.escapeHtml(user.nickname)}'s avatar"
+                     class="user-avatar">
+                <div class="user-info">
+                    <div class="user-name">${window.utils.escapeHtml(user.nickname)}</div>
+                    <div class="user-status">
+                        <span class="online-indicator"></span>
+                        Online
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        // Bind click events for online users
+        const userItems = container.querySelectorAll('.online-user-item');
+        userItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const userID = item.dataset.userId;
+                const user = users.find(u => u.id === userID);
+
+                if (user) {
+                    console.log('✅ Starting conversation with online user:', user.nickname);
+                    this.startNewConversation(user);
+                }
+            });
+        });
     },
 
     async loadConversations() {
@@ -330,72 +386,7 @@ window.MessagesPage = {
         }
     },
 
-    toggleUserSearch() {
-        const searchContainer = document.querySelector('.search-users');
-        if (searchContainer) {
-            searchContainer.classList.toggle('active');
-            const searchInput = document.getElementById('user-search');
-            if (searchInput && searchContainer.classList.contains('active')) {
-                searchInput.focus();
-            }
-        }
-    },
 
-    async searchUsers(event) {
-        const query = event.target.value.trim();
-        const resultsContainer = document.getElementById('user-search-results');
-        
-        if (!resultsContainer) return;
-        
-        if (query.length < 2) {
-            resultsContainer.innerHTML = '';
-            return;
-        }
-
-        try {
-            const response = await window.api.getUsers({ search: query });
-            if (response.success) {
-                this.renderUserSearchResults(response.data || []);
-            }
-        } catch (error) {
-            console.error('Failed to search users:', error);
-            resultsContainer.innerHTML = '<div class="error-message">Search failed</div>';
-        }
-    },
-
-    renderUserSearchResults(users) {
-        const container = document.getElementById('user-search-results');
-        if (!container) return;
-
-        if (users.length === 0) {
-            container.innerHTML = '<div class="no-results">No users found</div>';
-            return;
-        }
-
-        container.innerHTML = users.map(user => `
-            <div class="user-search-result" data-user-id="${user.id}">
-                <img src="${user.avatarURL || '/static/images/default-avatar.svg'}"
-                     alt="${window.utils.escapeHtml(user.nickname)}'s avatar" 
-                     class="user-avatar">
-                <div class="user-info">
-                    <span class="user-name">${window.utils.escapeHtml(user.nickname)}</span>
-                    <span class="user-full-name">${window.utils.escapeHtml(user.firstName)} ${window.utils.escapeHtml(user.lastName)}</span>
-                </div>
-            </div>
-        `).join('');
-
-        // Bind click events
-        const userResults = container.querySelectorAll('.user-search-result');
-        userResults.forEach(result => {
-            result.addEventListener('click', () => {
-                const userID = result.dataset.userId;
-                const user = users.find(u => u.id === userID);
-                if (user) {
-                    this.startNewConversation(user);
-                }
-            });
-        });
-    },
 
     async startNewConversation(user) {
         // Create a conversation object

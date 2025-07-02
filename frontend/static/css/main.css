@@ -1786,6 +1786,79 @@ body {
     font-size: 1.2rem;
 }
 
+/* Online Users Section */
+.online-users-section,
+.recent-conversations-section {
+    padding: var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.online-users-section h3,
+.recent-conversations-section h3 {
+    color: var(--text-primary);
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.online-user-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+    margin-bottom: var(--spacing-xs);
+}
+
+.online-user-item:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.online-user-item .user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.online-user-item .user-info {
+    flex: 1;
+}
+
+.online-user-item .user-name {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: block;
+}
+
+.online-user-item .user-status {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.online-indicator {
+    width: 8px;
+    height: 8px;
+    background-color: var(--success-color);
+    border-radius: 50%;
+}
+
+.no-users {
+    text-align: center;
+    color: var(--text-muted);
+    padding: var(--spacing-md);
+    font-style: italic;
+    font-size: 0.9rem;
+}
+
 .btn-sm {
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: 0.8rem;
