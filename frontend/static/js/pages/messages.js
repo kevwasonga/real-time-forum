@@ -111,8 +111,21 @@ window.MessagesPage = {
 
         console.log('👥 Rendering', users.length, 'online users');
 
-        container.innerHTML = users.map(user => `
-            <div class="online-user-item" data-user-id="${user.id}">
+        // Debug each user object
+        users.forEach((user, index) => {
+            console.log(`👤 User ${index}:`, user);
+            console.log(`👤 User ${index} ID:`, user.id);
+            console.log(`👤 User ${index} nickname:`, user.nickname);
+        });
+
+        container.innerHTML = users.map((user, index) => {
+            // Try different possible ID property names
+            const userId = user.id || user.userID || user.user_id || user.ID;
+            console.log(`🏗️ Generating HTML for user ${index} with ID:`, userId);
+            console.log(`🏗️ User object keys:`, Object.keys(user));
+
+            return `
+            <div class="online-user-item" data-user-id="${userId}">
                 <img src="${user.avatarURL || '/static/images/default-avatar.svg'}"
                      alt="${window.utils.escapeHtml(user.nickname)}'s avatar"
                      class="user-avatar">
@@ -124,7 +137,10 @@ window.MessagesPage = {
                     </div>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
+
+        console.log('🏗️ Generated HTML:', container.innerHTML);
 
         // Bind click events for online users
         const userItems = container.querySelectorAll('.online-user-item');
@@ -140,9 +156,13 @@ window.MessagesPage = {
                 console.log('🖱️ Click detected on online user item!');
 
                 const userID = item.dataset.userId;
-                const user = users.find(u => u.id === userID);
+                const user = users.find(u => {
+                    const userId = u.id || u.userID || u.user_id || u.ID;
+                    return userId === userID;
+                });
 
                 console.log('🔍 Found user data:', user);
+                console.log('🔍 Looking for userID:', userID);
 
                 if (user) {
                     console.log('✅ Starting conversation with online user:', user.nickname);
