@@ -177,6 +177,8 @@ window.SidebarComponent = {
 
         // Add click handler to start conversation
         userDiv.addEventListener('click', () => {
+            console.log('🖱️ SIDEBAR: Click detected on online user!', user);
+            console.log('🖱️ SIDEBAR: User object:', JSON.stringify(user, null, 2));
             this.startConversation(user);
         });
 
@@ -184,8 +186,12 @@ window.SidebarComponent = {
     },
 
     startConversation(user) {
+        console.log('🚀 SIDEBAR: startConversation called with user:', user);
+        console.log('🚀 SIDEBAR: Current user:', window.forumApp.currentUser);
+
         // Don't start conversation with self (this should already be filtered out, but double-check)
         if (window.forumApp.currentUser && user.userId === window.forumApp.currentUser.id) {
+            console.log('🚀 SIDEBAR: Skipping conversation with self');
             return;
         }
 

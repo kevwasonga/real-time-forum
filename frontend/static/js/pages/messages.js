@@ -166,10 +166,18 @@ window.MessagesPage = {
                 e.stopPropagation();
 
                 console.log('🖱️ Click detected on online user item!');
+                console.log('🖱️ Current users array:', users);
+                console.log('🖱️ Users array length:', users.length);
+                console.log('🖱️ Item clicked:', item);
+                console.log('🖱️ Item dataset:', item.dataset);
+                console.log('🖱️ Item outerHTML:', item.outerHTML);
 
                 const userID = item.dataset.userId;
+                console.log('🖱️ Extracted userID from dataset:', userID);
+
                 const user = users.find(u => {
                     const userId = u.id || u.userID || u.user_id || u.ID;
+                    console.log('🔍 Checking user:', u, 'with ID:', userId);
                     return userId === userID;
                 });
 
@@ -453,7 +461,8 @@ window.MessagesPage = {
 
 
     async startNewConversation(user) {
-        console.log('Starting new conversation with:', user.nickname);
+        console.log('💬 MESSAGES: startNewConversation called with:', user.nickname);
+        console.log('💬 MESSAGES: Full user object:', JSON.stringify(user, null, 2));
 
         // Create a conversation object
         const conversation = {
@@ -513,8 +522,31 @@ window.MessagesPage = {
 
     // Method to be called from sidebar component
     selectUser(user) {
+        console.log('📨 MESSAGES: selectUser called with:', user);
+        console.log('📨 MESSAGES: User object:', JSON.stringify(user, null, 2));
         this.startNewConversation(user);
     },
+
+    // Test function to send messages programmatically
+    async testSendMessage(recipientId, message) {
+        console.log('🧪 TEST: Sending test message to:', recipientId, 'Message:', message);
+
+        try {
+            const response = await window.api.request('/api/messages', {
+                method: 'POST',
+                body: JSON.stringify({
+                    recipientID: recipientId,
+                    content: message
+                })
+            });
+
+            console.log('🧪 TEST: Message sent successfully:', response);
+            return response;
+        } catch (error) {
+            console.error('🧪 TEST: Failed to send message:', error);
+            throw error;
+        }
+    }
 
 
 };
