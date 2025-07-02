@@ -165,20 +165,6 @@ func createTables() error {
 		UNIQUE(user_id, comment_id)
 	);`
 
-	// Friends table for friend relationships
-	friendsTable := `
-	CREATE TABLE IF NOT EXISTS friends (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		requester_id TEXT NOT NULL,
-		addressee_id TEXT NOT NULL,
-		status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'declined')),
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
-		FOREIGN KEY (addressee_id) REFERENCES users(id) ON DELETE CASCADE,
-		UNIQUE(requester_id, addressee_id)
-	);`
-
 	// Online users table for tracking active users (supports multiple sessions per user)
 	onlineUsersTable := `
 	CREATE TABLE IF NOT EXISTS online_users (
@@ -212,7 +198,7 @@ func createTables() error {
 		commentsTable,
 		messagesTable,
 		likesTable,
-		friendsTable,
+
 		onlineUsersTable,
 		privateMessagesTable,
 	}

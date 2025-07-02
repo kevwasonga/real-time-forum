@@ -148,7 +148,7 @@ window.forumApp = {
             createPost: window.CreatePostPage ? window.CreatePostPage.render.bind(window.CreatePostPage) : this.defaultPageHandler('Create Post'),
             messages: window.MessagesPage ? window.MessagesPage.render.bind(window.MessagesPage) : this.defaultPageHandler('Messages'),
             profile: window.ProfilePage ? window.ProfilePage.render.bind(window.ProfilePage) : this.defaultPageHandler('Profile'),
-            friends: window.FriendsPage ? window.FriendsPage.render.bind(window.FriendsPage) : this.defaultPageHandler('Friends')
+
         };
 
         // Initialize router after pages are set up
@@ -217,10 +217,7 @@ window.forumApp = {
             requiresAuth: true
         });
 
-        this.router.addRoute('/friends', this.pages.friends, {
-            title: 'Forum - Friends',
-            requiresAuth: true
-        });
+
 
         // Error test routes
         this.router.addRoute('/test-404', () => {

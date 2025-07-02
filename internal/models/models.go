@@ -4,19 +4,19 @@ import "time"
 
 // User represents a user in the system with comprehensive profile information
 type User struct {
-	ID          string    `json:"id" db:"id"`
-	Email       string    `json:"email" db:"email"`
-	Nickname    string    `json:"nickname" db:"nickname"`
-	Password    string    `json:"-" db:"password"` // Never expose password in JSON
-	FirstName   string    `json:"firstName" db:"first_name"`
-	LastName    string    `json:"lastName" db:"last_name"`
-	Age         int       `json:"age" db:"age"`
-	Gender      string    `json:"gender" db:"gender"`
-	GoogleID    *string   `json:"googleId,omitempty" db:"google_id"`
-	GithubID    *string   `json:"githubId,omitempty" db:"github_id"`
-	AvatarURL   *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
-	CreatedAt   time.Time `json:"createdAt" db:"created_at"`
-	UpdatedAt   time.Time `json:"updatedAt" db:"updated_at"`
+	ID        string    `json:"id" db:"id"`
+	Email     string    `json:"email" db:"email"`
+	Nickname  string    `json:"nickname" db:"nickname"`
+	Password  string    `json:"-" db:"password"` // Never expose password in JSON
+	FirstName string    `json:"firstName" db:"first_name"`
+	LastName  string    `json:"lastName" db:"last_name"`
+	Age       int       `json:"age" db:"age"`
+	Gender    string    `json:"gender" db:"gender"`
+	GoogleID  *string   `json:"googleId,omitempty" db:"google_id"`
+	GithubID  *string   `json:"githubId,omitempty" db:"github_id"`
+	AvatarURL *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
+	CreatedAt time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt time.Time `json:"updatedAt" db:"updated_at"`
 }
 
 // Post represents a forum post with enhanced features
@@ -58,13 +58,13 @@ type Comment struct {
 
 // Message represents a private message between users
 type Message struct {
-	ID           int       `json:"id" db:"id"`
-	SenderID     string    `json:"senderId" db:"sender_id"`
-	ReceiverID   string    `json:"receiverId" db:"receiver_id"`
-	Content      string    `json:"content" db:"content"`
-	SenderName   string    `json:"senderName" db:"sender_nickname"`
-	ReceiverName string    `json:"receiverName" db:"receiver_nickname"`
-	CreatedAt    time.Time `json:"createdAt" db:"created_at"`
+	ID           int        `json:"id" db:"id"`
+	SenderID     string     `json:"senderId" db:"sender_id"`
+	ReceiverID   string     `json:"receiverId" db:"receiver_id"`
+	Content      string     `json:"content" db:"content"`
+	SenderName   string     `json:"senderName" db:"sender_nickname"`
+	ReceiverName string     `json:"receiverName" db:"receiver_nickname"`
+	CreatedAt    time.Time  `json:"createdAt" db:"created_at"`
 	ReadAt       *time.Time `json:"readAt,omitempty" db:"read_at"`
 }
 
@@ -79,23 +79,6 @@ type Conversation struct {
 	LastMessageTime time.Time `json:"lastMessageTime" db:"last_message_time"`
 	UnreadCount     int       `json:"unreadCount" db:"unread_count"`
 	IsOnline        bool      `json:"isOnline" db:"-"`
-}
-
-// Friend represents a friendship relationship
-type Friend struct {
-	ID          int       `json:"id" db:"id"`
-	RequesterID string    `json:"requesterId" db:"requester_id"`
-	AddresseeID string    `json:"addresseeId" db:"addressee_id"`
-	Status      string    `json:"status" db:"status"`
-	CreatedAt   time.Time `json:"createdAt" db:"created_at"`
-	UpdatedAt   time.Time `json:"updatedAt" db:"updated_at"`
-	// Additional fields for display
-	UserID    string  `json:"userId" db:"user_id"`
-	Nickname  string  `json:"nickname" db:"nickname"`
-	FirstName string  `json:"firstName" db:"first_name"`
-	LastName  string  `json:"lastName" db:"last_name"`
-	AvatarURL *string `json:"avatarUrl,omitempty" db:"avatar_url"`
-	IsOnline  bool    `json:"isOnline" db:"-"`
 }
 
 // Like represents a like/dislike on a post or comment
@@ -177,11 +160,6 @@ type LikeRequest struct {
 	PostID    *int `json:"postId,omitempty"`
 	CommentID *int `json:"commentId,omitempty"`
 	IsLike    bool `json:"isLike"`
-}
-
-// FriendRequest represents the friend request payload
-type FriendRequest struct {
-	AddresseeID string `json:"addresseeId"`
 }
 
 // APIResponse represents a standard API response

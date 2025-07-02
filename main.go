@@ -15,14 +15,14 @@ import (
 
 // Valid frontend routes for SPA
 var validFrontendRoutes = map[string]bool{
-	"/":            true,
-	"/login":       true,
-	"/register":    true,
-	"/profile":     true,
-	"/post":        true,
-	"/posts":       true,
-	"/messages":    true,
-	"/friends":     true,
+	"/":         true,
+	"/login":    true,
+	"/register": true,
+	"/profile":  true,
+	"/post":     true,
+	"/posts":    true,
+	"/messages": true,
+
 	"/create-post": true,
 	"/settings":    true,
 }
@@ -93,7 +93,7 @@ func setupRoutes() {
 	http.HandleFunc("/api/users", handlers.UsersHandler)
 	http.HandleFunc("/api/categories", handlers.CategoriesHandler)
 	http.HandleFunc("/api/profile", handlers.ProfileHandler)
-	http.HandleFunc("/api/friends", handlers.FriendsHandler)
+
 	http.HandleFunc("/api/online-users", handlers.OnlineUsersHandler)
 
 	// Avatar upload routes

@@ -198,18 +198,7 @@ window.api = {
         return this.put('/profile/avatar', avatarData);
     },
 
-    // Friends endpoints
-    async getFriends() {
-        return this.get('/friends');
-    },
 
-    async sendFriendRequest(addresseeId) {
-        return this.post('/friends', { addresseeId });
-    },
-
-    async updateFriendRequest(requesterId, action) {
-        return this.put('/friends', { requesterId, action });
-    },
 
     // Categories endpoints
     async getCategories() {
