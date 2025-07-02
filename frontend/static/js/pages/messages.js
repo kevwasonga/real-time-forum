@@ -61,18 +61,33 @@ window.MessagesPage = {
     },
 
     async loadOnlineUsers() {
+        console.log('🔄 loadOnlineUsers called');
         try {
+            console.log('📡 Making API call to get online users...');
             const response = await window.api.getOnlineUsers();
+            console.log('📡 API response:', response);
+
             if (response.success) {
                 const onlineUsers = response.data || [];
+                console.log('👥 Raw online users:', onlineUsers);
+
                 // Filter out current user
                 const otherUsers = onlineUsers.filter(user =>
                     window.forumApp.currentUser && user.id !== window.forumApp.currentUser.id
                 );
+                console.log('👥 Filtered online users (excluding current user):', otherUsers);
+                console.log('👤 Current user:', window.forumApp.currentUser);
+
                 this.renderOnlineUsers(otherUsers);
+            } else {
+                console.error('❌ API call failed:', response);
+                const container = document.getElementById('online-users-list');
+                if (container) {
+                    container.innerHTML = '<div class="error-message">Failed to load online users</div>';
+                }
             }
         } catch (error) {
-            console.error('Failed to load online users:', error);
+            console.error('❌ Failed to load online users:', error);
             const container = document.getElementById('online-users-list');
             if (container) {
                 container.innerHTML = '<div class="error-message">Failed to load online users</div>';
@@ -81,13 +96,20 @@ window.MessagesPage = {
     },
 
     renderOnlineUsers(users) {
+        console.log('🎨 renderOnlineUsers called with:', users);
         const container = document.getElementById('online-users-list');
-        if (!container) return;
+        if (!container) {
+            console.error('❌ Container #online-users-list not found!');
+            return;
+        }
 
         if (users.length === 0) {
+            console.log('📭 No users to display');
             container.innerHTML = '<div class="no-users">No other users online</div>';
             return;
         }
+
+        console.log('👥 Rendering', users.length, 'online users');
 
         container.innerHTML = users.map(user => `
             <div class="online-user-item" data-user-id="${user.id}">
@@ -399,7 +421,7 @@ window.MessagesPage = {
 
 
     async startNewConversation(user) {
-        console.log('🚀 Starting new conversation with:', user.nickname);
+        console.log('Starting new conversation with:', user.nickname);
 
         // Create a conversation object
         const conversation = {
