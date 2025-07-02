@@ -106,17 +106,27 @@ window.MessagesPage = {
 
         // Bind click events for online users
         const userItems = container.querySelectorAll('.online-user-item');
-        userItems.forEach(item => {
+        console.log('🔗 Binding click events to', userItems.length, 'online user items');
+
+        userItems.forEach((item, index) => {
+            console.log(`🔗 Binding click event to item ${index}:`, item.dataset.userId);
+
             item.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
 
+                console.log('🖱️ Click detected on online user item!');
+
                 const userID = item.dataset.userId;
                 const user = users.find(u => u.id === userID);
+
+                console.log('🔍 Found user data:', user);
 
                 if (user) {
                     console.log('✅ Starting conversation with online user:', user.nickname);
                     this.startNewConversation(user);
+                } else {
+                    console.error('❌ User not found for ID:', userID);
                 }
             });
         });
