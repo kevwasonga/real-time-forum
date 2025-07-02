@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -85,20 +86,33 @@ func getConversationsHandler(w http.ResponseWriter, r *http.Request) {
 
 // createMessageHandler handles message creation
 func createMessageHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("💬 Message creation started")
+
 	user := auth.GetUserFromSession(r)
 	if user == nil {
+		log.Printf("❌ Message creation failed - Authentication required")
 		RenderError(w, "Authentication required", http.StatusUnauthorized)
 		return
 	}
 
+	log.Printf("✅ User authenticated: %s (%s)", user.Nickname, user.ID)
+
 	var req models.MessageRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("❌ Message creation failed - Invalid request body: %v", err)
 		RenderError(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
+	contentPreview := req.Content
+	if len(contentPreview) > 50 {
+		contentPreview = contentPreview[:50] + "..."
+	}
+	log.Printf("📋 Message data - From: %s, To: %s, Content: %s", user.ID, req.ReceiverID, contentPreview)
+
 	// Validate input
 	if req.ReceiverID == "" || req.Content == "" {
+		log.Printf("❌ Message creation failed - Missing receiver ID or content")
 		RenderError(w, "Receiver ID and content are required", http.StatusBadRequest)
 		return
 	}
@@ -106,12 +120,16 @@ func createMessageHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if receiver exists
 	receiver, err := auth.GetUserByID(req.ReceiverID)
 	if err != nil || receiver == nil {
+		log.Printf("❌ Message creation failed - Receiver not found: %s", req.ReceiverID)
 		RenderError(w, "Receiver not found", http.StatusNotFound)
 		return
 	}
 
+	log.Printf("✅ Receiver found: %s (%s)", receiver.Nickname, receiver.ID)
+
 	// Generate message ID
 	messageID := generateMessageID()
+	log.Printf("🔄 Generated message ID: %s", messageID)
 
 	// Insert message into private_messages table
 	_, err = database.DB.Exec(`
@@ -120,20 +138,28 @@ func createMessageHandler(w http.ResponseWriter, r *http.Request) {
 	`, messageID, user.ID, req.ReceiverID, req.Content)
 
 	if err != nil {
+		log.Printf("❌ Message creation failed - Database error: %v", err)
 		RenderError(w, "Failed to create message", http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("✅ Message inserted into database successfully")
+
 	// Get the created message
 	message, err := getMessageByID(messageID)
 	if err != nil {
+		log.Printf("❌ Message creation failed - Failed to retrieve created message: %v", err)
 		RenderError(w, "Failed to retrieve created message", http.StatusInternalServerError)
 		return
 	}
 
+	log.Printf("✅ Message retrieved successfully: %+v", message)
+
 	// Send message via WebSocket to receiver
 	websocket.SendPrivateMessage(req.ReceiverID, message)
+	log.Printf("📡 WebSocket message sent to receiver: %s", req.ReceiverID)
 
+	log.Printf("🎉 Message sent successfully from %s to %s", user.Nickname, receiver.Nickname)
 	RenderSuccess(w, "Message sent successfully", message)
 }
 

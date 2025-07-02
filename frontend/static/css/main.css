@@ -3813,7 +3813,7 @@ body {
     }
 }
 
-/* Enhanced Profile Page Styles */
+/* Simplified Profile Page Styles */
 .profile-hero {
     background: linear-gradient(135deg, var(--surface-color) 0%, var(--surface-hover) 100%);
     border-radius: var(--radius-lg);
@@ -3822,49 +3822,12 @@ body {
     box-shadow: var(--shadow-lg);
 }
 
-.profile-cover {
-    height: 200px;
-    background: linear-gradient(135deg, var(--primary-color) 0%, #1557b0 100%);
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.cover-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
-}
-
-.change-cover-btn {
-    position: absolute;
-    top: var(--spacing-md);
-    right: var(--spacing-md);
-    background: rgba(0, 0, 0, 0.5);
-    border: none;
-    color: white;
-    padding: var(--spacing-sm);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: background-color var(--transition-fast);
-}
-
-.change-cover-btn:hover {
-    background: rgba(0, 0, 0, 0.7);
-}
-
 .profile-hero-content {
     display: flex;
     align-items: flex-start;
     gap: var(--spacing-xl);
     padding: var(--spacing-xl);
-    margin-top: -80px;
     position: relative;
-    z-index: 2;
 }
 
 .profile-avatar-wrapper {
@@ -3881,27 +3844,7 @@ body {
     box-shadow: var(--shadow-lg);
 }
 
-.change-avatar-btn {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    background: var(--primary-color);
-    border: none;
-    color: white;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color var(--transition-fast);
-    box-shadow: var(--shadow-md);
-}
 
-.change-avatar-btn:hover {
-    background: var(--primary-hover);
-}
 
 .online-indicator {
     position: absolute;
@@ -3982,51 +3925,7 @@ body {
     flex-shrink: 0;
 }
 
-.profile-tabs {
-    display: flex;
-    background-color: var(--surface-color);
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-xs);
-    margin-bottom: var(--spacing-xl);
-    overflow-x: auto;
-}
 
-.tab-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    padding: var(--spacing-md) var(--spacing-lg);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    transition: all var(--transition-fast);
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    font-weight: 500;
-}
-
-.tab-btn:hover {
-    background-color: var(--surface-hover);
-    color: var(--text-color);
-}
-
-.tab-btn.active {
-    background-color: var(--primary-color);
-    color: white;
-}
-
-.profile-tab-content {
-    min-height: 400px;
-}
-
-.tab-content {
-    display: none;
-}
-
-.tab-content.active {
-    display: block;
-}
 
 /* Overview Tab */
 .overview-grid {
