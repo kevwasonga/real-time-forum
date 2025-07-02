@@ -1,4 +1,5 @@
 /* Forum - Modern Dark Theme CSS */
+@import url('./messaging.css');
 
 :root {
     /* Original Magic Colors */

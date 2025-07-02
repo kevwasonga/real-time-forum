@@ -56,31 +56,6 @@ type Comment struct {
 	UserDisliked bool      `json:"userDisliked" db:"user_disliked"`
 }
 
-// Message represents a private message between users
-type Message struct {
-	ID           int        `json:"id" db:"id"`
-	SenderID     string     `json:"senderId" db:"sender_id"`
-	ReceiverID   string     `json:"receiverId" db:"receiver_id"`
-	Content      string     `json:"content" db:"content"`
-	SenderName   string     `json:"senderName" db:"sender_nickname"`
-	ReceiverName string     `json:"receiverName" db:"receiver_nickname"`
-	CreatedAt    time.Time  `json:"createdAt" db:"created_at"`
-	ReadAt       *time.Time `json:"readAt,omitempty" db:"read_at"`
-}
-
-// Conversation represents a conversation between two users
-type Conversation struct {
-	UserID          string    `json:"userId" db:"user_id"`
-	Nickname        string    `json:"nickname" db:"nickname"`
-	FirstName       string    `json:"firstName" db:"first_name"`
-	LastName        string    `json:"lastName" db:"last_name"`
-	AvatarURL       *string   `json:"avatarUrl,omitempty" db:"avatar_url"`
-	LastMessage     string    `json:"lastMessage" db:"last_message"`
-	LastMessageTime time.Time `json:"lastMessageTime" db:"last_message_time"`
-	UnreadCount     int       `json:"unreadCount" db:"unread_count"`
-	IsOnline        bool      `json:"isOnline" db:"-"`
-}
-
 // Like represents a like/dislike on a post or comment
 type Like struct {
 	ID        int       `json:"id" db:"id"`
@@ -147,12 +122,6 @@ type CommentRequest struct {
 	PostID   int    `json:"postId"`
 	ParentID *int   `json:"parentId,omitempty"`
 	Content  string `json:"content"`
-}
-
-// MessageRequest represents the message creation request payload
-type MessageRequest struct {
-	ReceiverID string `json:"receiverId"`
-	Content    string `json:"content"`
 }
 
 // LikeRequest represents the like/dislike request payload

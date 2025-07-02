@@ -95,13 +95,17 @@ func setupRoutes() {
 		w.Write([]byte(`{"success": true, "message": "Test endpoint working"}`))
 	})
 	http.HandleFunc("/api/like", handlers.LikeHandler)
-	http.HandleFunc("/api/messages", handlers.MessagesHandler)
-	http.HandleFunc("/api/messages/", handlers.MessageHandler)
-	http.HandleFunc("/api/users", handlers.UsersHandler)
+
 	http.HandleFunc("/api/categories", handlers.CategoriesHandler)
 	http.HandleFunc("/api/profile", handlers.ProfileHandler)
 
 	http.HandleFunc("/api/online-users", handlers.OnlineUsersHandler)
+
+	// Messaging endpoints
+	http.HandleFunc("/api/conversations", handlers.ConversationsHandler)
+	http.HandleFunc("/api/messages", handlers.MessagesHandler)
+	http.HandleFunc("/api/messages/", handlers.MessagesHandler)
+	http.HandleFunc("/api/users/search", handlers.UserSearchHandler)
 
 	// Avatar upload routes
 	http.HandleFunc("/api/upload/avatar", handlers.AvatarUploadHandler)

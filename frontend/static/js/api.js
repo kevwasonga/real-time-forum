@@ -155,18 +155,7 @@ window.api = {
         return this.delete(`/comment/${commentId}`);
     },
 
-    // Messages endpoints
-    async getConversations() {
-        return this.get('/messages');
-    },
 
-    async getMessages(userId) {
-        return this.get(`/messages/${userId}`);
-    },
-
-    async sendMessage(receiverId, content) {
-        return this.post('/messages', { receiverId, content });
-    },
 
     // Users endpoints
     async getUsers(params = {}) {
@@ -175,6 +164,27 @@ window.api = {
 
     async getOnlineUsers() {
         return this.get('/online-users');
+    },
+
+    // Messaging endpoints
+    async getConversations() {
+        return this.get('/conversations');
+    },
+
+    async getMessages(conversationId, page = 1, limit = 50) {
+        return this.get(`/messages/${conversationId}?page=${page}&limit=${limit}`);
+    },
+
+    async sendMessage(recipientId, content, messageType = 'text') {
+        return this.post('/messages', { recipientId, content, messageType });
+    },
+
+    async markAsRead(conversationId) {
+        return this.put(`/messages/${conversationId}/read`);
+    },
+
+    async searchUsers(query) {
+        return this.get(`/users/search?q=${encodeURIComponent(query)}`);
     },
 
     // Profile endpoints

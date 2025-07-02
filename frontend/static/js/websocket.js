@@ -299,9 +299,7 @@ window.WebSocketClient = class {
     /**
      * Convenience methods for sending specific message types
      */
-    sendPrivateMessage(receiverId, content) {
-        this.send('private_message', { receiverId, content });
-    }
+
 
     sendTypingIndicator(receiverId, isTyping) {
         this.send('typing_indicator', { receiverId, isTyping });

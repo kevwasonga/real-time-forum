@@ -91,7 +91,7 @@ func TestModelSerialization(t *testing.T) {
 
 	t.Run("Message JSON Serialization", func(t *testing.T) {
 		message := &models.Message{
-			ID:         1,
+			ID:         "msg_1",
 			SenderID:   "sender-id",
 			ReceiverID: "receiver-id",
 			Content:    "Hello, this is a test message",

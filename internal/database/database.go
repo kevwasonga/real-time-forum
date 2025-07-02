@@ -33,6 +33,11 @@ func Initialize() error {
 		return fmt.Errorf("failed to create tables: %v", err)
 	}
 
+	// Initialize messaging tables
+	if err = initMessagingTables(); err != nil {
+		return fmt.Errorf("failed to create messaging tables: %v", err)
+	}
+
 	log.Println("✅ Database initialized successfully")
 	return nil
 }
@@ -136,19 +141,6 @@ func createTables() error {
 		FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
 	);`
 
-	// Messages table for private messaging
-	messagesTable := `
-	CREATE TABLE IF NOT EXISTS messages (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		sender_id TEXT NOT NULL,
-		receiver_id TEXT NOT NULL,
-		content TEXT NOT NULL,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		read_at TIMESTAMP,
-		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
-		FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
-	);`
-
 	// Likes table for posts and comments
 	likesTable := `
 	CREATE TABLE IF NOT EXISTS likes (
@@ -175,19 +167,6 @@ func createTables() error {
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);`
 
-	// Private messages table for storing chat messages
-	privateMessagesTable := `
-	CREATE TABLE IF NOT EXISTS private_messages (
-		id TEXT PRIMARY KEY,
-		sender_id TEXT NOT NULL,
-		receiver_id TEXT NOT NULL,
-		content TEXT NOT NULL,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		read_at TIMESTAMP NULL,
-		FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
-		FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
-	);`
-
 	tables := []string{
 		usersTable,
 		googleAuthTable,
@@ -196,11 +175,9 @@ func createTables() error {
 		postsTable,
 		postCategoriesTable,
 		commentsTable,
-		messagesTable,
 		likesTable,
 
 		onlineUsersTable,
-		privateMessagesTable,
 	}
 
 	for _, table := range tables {
@@ -215,14 +192,10 @@ func createTables() error {
 		"CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);",
 		"CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id);",
-		"CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver ON messages(sender_id, receiver_id);",
-		"CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);",
 		"CREATE INDEX IF NOT EXISTS idx_likes_post_id ON likes(post_id);",
 		"CREATE INDEX IF NOT EXISTS idx_likes_comment_id ON likes(comment_id);",
 		"CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);",
 		"CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);",
-		"CREATE INDEX IF NOT EXISTS idx_private_messages_sender_receiver ON private_messages(sender_id, receiver_id);",
-		"CREATE INDEX IF NOT EXISTS idx_private_messages_created_at ON private_messages(created_at DESC);",
 	}
 
 	for _, index := range indexes {
@@ -281,5 +254,77 @@ func migrateOnlineUsersTable() error {
 		log.Println("✅ Successfully migrated online_users table")
 	}
 
+	return nil
+}
+
+// initMessagingTables creates the messaging system tables
+func initMessagingTables() error {
+	log.Println("🗨️ Initializing messaging tables...")
+
+	// Drop existing messaging tables if they exist
+	dropTables := []string{
+		"DROP TABLE IF EXISTS messages",
+		"DROP TABLE IF EXISTS conversations",
+	}
+
+	for _, query := range dropTables {
+		if _, err := DB.Exec(query); err != nil {
+			log.Printf("Warning: Failed to drop table: %v", err)
+		}
+	}
+
+	// Create conversations table
+	conversationsTable := `
+		CREATE TABLE IF NOT EXISTS conversations (
+			id TEXT PRIMARY KEY,
+			participant1_id TEXT NOT NULL,
+			participant2_id TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (participant1_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY (participant2_id) REFERENCES users(id) ON DELETE CASCADE,
+			UNIQUE(participant1_id, participant2_id)
+		)
+	`
+
+	if _, err := DB.Exec(conversationsTable); err != nil {
+		return fmt.Errorf("failed to create conversations table: %v", err)
+	}
+
+	// Create messages table
+	messagesTable := `
+		CREATE TABLE IF NOT EXISTS messages (
+			id TEXT PRIMARY KEY,
+			conversation_id TEXT NOT NULL,
+			sender_id TEXT NOT NULL,
+			content TEXT NOT NULL,
+			message_type TEXT DEFAULT 'text',
+			is_read BOOLEAN DEFAULT FALSE,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+			FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+		)
+	`
+
+	if _, err := DB.Exec(messagesTable); err != nil {
+		return fmt.Errorf("failed to create messages table: %v", err)
+	}
+
+	// Create indexes for better performance
+	indexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_conversations_participants ON conversations(participant1_id, participant2_id)",
+		"CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)",
+		"CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id)",
+		"CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at)",
+		"CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(is_read, conversation_id)",
+	}
+
+	for _, indexQuery := range indexes {
+		if _, err := DB.Exec(indexQuery); err != nil {
+			log.Printf("Warning: Failed to create index: %v", err)
+		}
+	}
+
+	log.Println("✅ Messaging tables initialized successfully")
 	return nil
 }
