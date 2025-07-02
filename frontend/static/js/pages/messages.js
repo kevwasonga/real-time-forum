@@ -45,7 +45,6 @@ window.MessagesPage = {
 
         await this.loadConversations();
         this.bindEvents();
-        this.bindTestButton();
     },
 
     bindEvents() {
@@ -105,7 +104,7 @@ window.MessagesPage = {
         container.innerHTML = sortedConversations.map(conv => `
             <div class="conversation-item ${this.selectedConversation?.userID === conv.userID ? 'active' : ''}" 
                  data-user-id="${conv.userID}">
-                <img src="${conv.avatarURL || '/static/images/default-avatar.png'}" 
+                <img src="${conv.avatarURL || '/static/images/default-avatar.svg'}"
                      alt="${window.utils.escapeHtml(conv.nickname)}'s avatar" 
                      class="conversation-avatar">
                 <div class="conversation-info">
@@ -200,7 +199,7 @@ window.MessagesPage = {
         // Render the full chat interface in the main area
         container.innerHTML = `
             <div class="conversation-header">
-                <img src="${this.selectedConversation.avatarURL || '/static/images/default-avatar.png'}"
+                <img src="${this.selectedConversation.avatarURL || '/static/images/default-avatar.svg'}"
                      alt="${window.utils.escapeHtml(this.selectedConversation.nickname)}'s avatar"
                      class="conversation-avatar">
                 <div class="conversation-info">
@@ -375,7 +374,7 @@ window.MessagesPage = {
 
         container.innerHTML = users.map(user => `
             <div class="user-search-result" data-user-id="${user.id}">
-                <img src="${user.avatarURL || '/static/images/default-avatar.png'}" 
+                <img src="${user.avatarURL || '/static/images/default-avatar.svg'}"
                      alt="${window.utils.escapeHtml(user.nickname)}'s avatar" 
                      class="user-avatar">
                 <div class="user-info">
@@ -465,48 +464,5 @@ window.MessagesPage = {
         this.startNewConversation(user);
     },
 
-    // Test method to check if chat display works
-    bindTestButton() {
-        const testBtn = document.getElementById('test-chat-btn');
-        if (testBtn) {
-            testBtn.addEventListener('click', () => {
-                console.log('🧪 Test button clicked - creating test conversation');
 
-                // Create a test conversation
-                const testConversation = {
-                    userID: 'test-user-123',
-                    nickname: 'Test User',
-                    firstName: 'Test',
-                    lastName: 'User',
-                    avatarURL: '/static/images/default-avatar.png',
-                    lastMessage: 'Test message',
-                    lastMessageTime: new Date().toISOString(),
-                    unreadCount: 0
-                };
-
-                // Set test messages
-                this.messages = [
-                    {
-                        id: 'msg1',
-                        senderID: 'test-user-123',
-                        receiverID: window.forumApp.currentUser?.id || 'current-user',
-                        content: 'Hello! This is a test message.',
-                        createdAt: new Date(Date.now() - 60000),
-                        senderName: 'Test User'
-                    },
-                    {
-                        id: 'msg2',
-                        senderID: window.forumApp.currentUser?.id || 'current-user',
-                        receiverID: 'test-user-123',
-                        content: 'Hi there! This is my reply.',
-                        createdAt: new Date(),
-                        senderName: 'You'
-                    }
-                ];
-
-                // Select the test conversation
-                this.selectConversation(testConversation);
-            });
-        }
-    }
 };
