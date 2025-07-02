@@ -20,6 +20,17 @@ window.MessagesPage = {
                         <h2>Messages</h2>
                     </div>
 
+                    <div class="user-search-section">
+                        <h3>Search Users</h3>
+                        <div class="search-container">
+                            <input type="text" id="user-search-input" placeholder="Search for users..." class="search-input">
+                            <button id="search-users-btn" class="search-btn">🔍</button>
+                        </div>
+                        <div id="search-results" class="search-results">
+                            <!-- Search results will appear here -->
+                        </div>
+                    </div>
+
                     <div class="online-users-section">
                         <h3>Online Users</h3>
                         <div id="online-users-list" class="online-users-list">
@@ -49,6 +60,7 @@ window.MessagesPage = {
         await this.loadOnlineUsers();
         await this.loadConversations();
         this.bindEvents();
+        this.setupUserSearch();
     },
 
     bindEvents() {
@@ -57,6 +69,245 @@ window.MessagesPage = {
             window.forumApp.websocket.addEventListener('private_message', (message) => {
                 this.handleNewMessage(message);
             });
+        }
+    },
+
+    setupUserSearch() {
+        const searchInput = document.getElementById('user-search-input');
+        const searchBtn = document.getElementById('search-users-btn');
+
+        if (!searchInput || !searchBtn) {
+            console.error('🔍 Search elements not found');
+            return;
+        }
+
+        // Search on button click
+        searchBtn.addEventListener('click', () => {
+            this.performUserSearch();
+        });
+
+        // Search on Enter key press
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.performUserSearch();
+            }
+        });
+
+        // Real-time search as user types (with debounce)
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const query = searchInput.value.trim();
+                if (query.length >= 2) {
+                    this.performUserSearch();
+                } else if (query.length === 0) {
+                    this.clearSearchResults();
+                }
+            }, 300); // 300ms debounce
+        });
+
+        console.log('🔍 User search functionality initialized');
+    },
+
+    async performUserSearch() {
+        const searchInput = document.getElementById('user-search-input');
+        const searchResults = document.getElementById('search-results');
+
+        if (!searchInput || !searchResults) {
+            console.error('🔍 Search elements not found');
+            return;
+        }
+
+        const query = searchInput.value.trim();
+
+        if (query.length < 2) {
+            this.clearSearchResults();
+            return;
+        }
+
+        console.log('🔍 Searching for users with query:', query);
+
+        try {
+            // Show loading state
+            searchResults.innerHTML = '<div class="loading-placeholder">Searching users...</div>';
+
+            // Make API call to search users
+            const response = await window.api.request(`/api/users?search=${encodeURIComponent(query)}`);
+
+            console.log('🔍 Search response:', response);
+
+            if (response.success && response.data) {
+                this.renderSearchResults(response.data);
+            } else {
+                searchResults.innerHTML = '<div class="no-results">No users found</div>';
+            }
+        } catch (error) {
+            console.error('🔍 Search error:', error);
+            searchResults.innerHTML = '<div class="error-message">Search failed. Please try again.</div>';
+        }
+    },
+
+    renderSearchResults(users) {
+        const searchResults = document.getElementById('search-results');
+
+        if (!searchResults) {
+            console.error('🔍 Search results container not found');
+            return;
+        }
+
+        if (!users || users.length === 0) {
+            searchResults.innerHTML = '<div class="no-results">No users found</div>';
+            return;
+        }
+
+        // Filter out current user
+        const currentUser = window.forumApp.currentUser;
+        const filteredUsers = users.filter(user => {
+            const userId = user.id || user.userID || user.user_id || user.ID;
+            return currentUser && userId !== currentUser.id;
+        });
+
+        if (filteredUsers.length === 0) {
+            searchResults.innerHTML = '<div class="no-results">No other users found</div>';
+            return;
+        }
+
+        console.log('🔍 Rendering', filteredUsers.length, 'search results');
+
+        searchResults.innerHTML = filteredUsers.map(user => {
+            const userId = user.id || user.userID || user.user_id || user.ID;
+            const isOnline = this.isUserOnline(userId);
+
+            return `
+                <div class="search-result-item" data-user-id="${userId}">
+                    <img src="${user.avatarURL || '/static/images/default-avatar.svg'}"
+                         alt="${window.utils.escapeHtml(user.nickname)}'s avatar"
+                         class="user-avatar">
+                    <div class="user-info">
+                        <div class="user-name">${window.utils.escapeHtml(user.nickname)}</div>
+                        <div class="user-details">
+                            <span class="user-fullname">${window.utils.escapeHtml(user.firstName || '')} ${window.utils.escapeHtml(user.lastName || '')}</span>
+                            ${isOnline ? '<span class="online-indicator">🟢 Online</span>' : '<span class="offline-indicator">⚫ Offline</span>'}
+                        </div>
+                    </div>
+                    <button class="start-chat-btn" data-user-id="${userId}">💬 Chat</button>
+                </div>
+            `;
+        }).join('');
+
+        // Bind click events for search results
+        this.bindSearchResultEvents();
+    },
+
+    bindSearchResultEvents() {
+        const searchResults = document.getElementById('search-results');
+        if (!searchResults) return;
+
+        // Bind click events to chat buttons
+        const chatButtons = searchResults.querySelectorAll('.start-chat-btn');
+        chatButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const userId = button.dataset.userId;
+                this.startChatWithUser(userId);
+            });
+        });
+
+        // Bind click events to result items
+        const resultItems = searchResults.querySelectorAll('.search-result-item');
+        resultItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const userId = item.dataset.userId;
+                this.startChatWithUser(userId);
+            });
+        });
+    },
+
+    async startChatWithUser(userId) {
+        console.log('💬 Starting chat with user ID:', userId);
+
+        try {
+            // Find user data from search results or online users
+            const user = this.findUserById(userId);
+
+            if (!user) {
+                console.error('❌ User not found for ID:', userId);
+                return;
+            }
+
+            console.log('💬 Found user data:', user);
+
+            // Start new conversation
+            await this.startNewConversation(user);
+
+            // Clear search results
+            this.clearSearchResults();
+
+            // Clear search input
+            const searchInput = document.getElementById('user-search-input');
+            if (searchInput) {
+                searchInput.value = '';
+            }
+
+        } catch (error) {
+            console.error('💬 Error starting chat:', error);
+        }
+    },
+
+    findUserById(userId) {
+        // First check online users
+        const onlineUsersContainer = document.getElementById('online-users-list');
+        if (onlineUsersContainer) {
+            const onlineUserElement = onlineUsersContainer.querySelector(`[data-user-id="${userId}"]`);
+            if (onlineUserElement) {
+                // Extract user data from online users list
+                const nickname = onlineUserElement.querySelector('.user-name')?.textContent;
+                if (nickname) {
+                    return {
+                        id: userId,
+                        userID: userId,
+                        nickname: nickname
+                    };
+                }
+            }
+        }
+
+        // Check search results
+        const searchResults = document.getElementById('search-results');
+        if (searchResults) {
+            const searchResultElement = searchResults.querySelector(`[data-user-id="${userId}"]`);
+            if (searchResultElement) {
+                const nickname = searchResultElement.querySelector('.user-name')?.textContent;
+                const fullName = searchResultElement.querySelector('.user-fullname')?.textContent;
+                if (nickname) {
+                    const [firstName, lastName] = (fullName || '').split(' ');
+                    return {
+                        id: userId,
+                        userID: userId,
+                        nickname: nickname,
+                        firstName: firstName || '',
+                        lastName: lastName || ''
+                    };
+                }
+            }
+        }
+
+        return null;
+    },
+
+    isUserOnline(userId) {
+        const onlineUsersContainer = document.getElementById('online-users-list');
+        if (!onlineUsersContainer) return false;
+
+        const onlineUserElement = onlineUsersContainer.querySelector(`[data-user-id="${userId}"]`);
+        return !!onlineUserElement;
+    },
+
+    clearSearchResults() {
+        const searchResults = document.getElementById('search-results');
+        if (searchResults) {
+            searchResults.innerHTML = '';
         }
     },
 
