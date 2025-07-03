@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
 
@@ -131,13 +132,36 @@ func GetMessagesHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
+		// Get user IDs from nicknames
+		var userID, otherUserID string
+		err := db.QueryRow("SELECT id FROM users WHERE nickname = ?", username).Scan(&userID)
+		if err != nil {
+			log.Printf("Error finding user ID: %v", err)
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+
+		err = db.QueryRow("SELECT id FROM users WHERE nickname = ?", otherUser).Scan(&otherUserID)
+		if err != nil {
+			log.Printf("Error finding other user ID: %v", err)
+			http.Error(w, "Other user not found", http.StatusNotFound)
+			return
+		}
+
 		// Get messages between these two users
 		rows, err := db.Query(`
-			SELECT sender, receiver, message, time, status
-			FROM messages
-			WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)
-			ORDER BY time ASC
-		`, username, otherUser, otherUser, username)
+			SELECT m.content, u1.nickname as sender, u2.nickname as receiver, m.created_at,
+			       CASE WHEN m.is_read THEN 'read' ELSE 'unread' END as status
+			FROM messages m
+			JOIN conversations c ON m.conversation_id = c.id
+			JOIN users u1 ON m.sender_id = u1.id
+			JOIN users u2 ON (c.participant1_id = u2.id AND c.participant2_id = u1.id)
+			          OR (c.participant2_id = u2.id AND c.participant1_id = u1.id)
+			WHERE ((c.participant1_id = ? AND c.participant2_id = ?)
+			    OR (c.participant1_id = ? AND c.participant2_id = ?))
+			  AND u2.id != u1.id
+			ORDER BY m.created_at ASC
+		`, userID, otherUserID, otherUserID, userID)
 
 		if err != nil {
 			log.Printf("Error fetching messages: %v", err)
@@ -148,16 +172,16 @@ func GetMessagesHandler(db *sql.DB) http.HandlerFunc {
 
 		var messages []map[string]interface{}
 		for rows.Next() {
-			var sender, receiver, message, time, status string
-			if err := rows.Scan(&sender, &receiver, &message, &time, &status); err != nil {
+			var content, sender, receiver, createdAt, status string
+			if err := rows.Scan(&content, &sender, &receiver, &createdAt, &status); err != nil {
 				log.Printf("Error scanning message: %v", err)
 				continue
 			}
 			messages = append(messages, map[string]interface{}{
 				"sender":   sender,
 				"receiver": receiver,
-				"message":  message,
-				"time":     time,
+				"message":  content,
+				"time":     createdAt,
 				"status":   status,
 			})
 		}
@@ -364,11 +388,49 @@ func ChatWebSocketHandler(db *sql.DB) http.HandlerFunc {
 
 			log.Printf("📨 Received message: %+v", message)
 
+			// Get sender and receiver user IDs from nicknames
+			var senderID, receiverID string
+			err = db.QueryRow("SELECT id FROM users WHERE nickname = ?", message.Sender).Scan(&senderID)
+			if err != nil {
+				log.Printf("❌ Error finding sender user ID: %v", err)
+				continue
+			}
+
+			err = db.QueryRow("SELECT id FROM users WHERE nickname = ?", message.Receiver).Scan(&receiverID)
+			if err != nil {
+				log.Printf("❌ Error finding receiver user ID: %v", err)
+				continue
+			}
+
+			// Find or create conversation
+			var conversationID string
+			err = db.QueryRow(`
+				SELECT id FROM conversations
+				WHERE (participant1_id = ? AND participant2_id = ?)
+				   OR (participant1_id = ? AND participant2_id = ?)
+			`, senderID, receiverID, receiverID, senderID).Scan(&conversationID)
+
+			if err != nil {
+				// Create new conversation
+				conversationID = generateUUID()
+				_, err = db.Exec(`
+					INSERT INTO conversations (id, participant1_id, participant2_id, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?)
+				`, conversationID, senderID, receiverID, time.Now(), time.Now())
+
+				if err != nil {
+					log.Printf("❌ Error creating conversation: %v", err)
+					continue
+				}
+				log.Printf("✅ Created new conversation: %s", conversationID)
+			}
+
 			// Save message to database
+			messageID := generateUUID()
 			_, err = db.Exec(`
-				INSERT INTO messages (sender, receiver, message, time, status)
-				VALUES (?, ?, ?, ?, ?)
-			`, message.Sender, message.Receiver, message.Message, time.Now().Format("2006-01-02 15:04:05"), "unread")
+				INSERT INTO messages (id, conversation_id, sender_id, content, message_type, is_read, created_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?)
+			`, messageID, conversationID, senderID, message.Message, "text", false, time.Now())
 
 			if err != nil {
 				log.Printf("❌ Error saving message to database: %v", err)
@@ -402,4 +464,9 @@ func ChatWebSocketHandler(db *sql.DB) http.HandlerFunc {
 
 		log.Printf("🔌 WebSocket connection closed for room: %s", path)
 	}
+}
+
+// generateUUID generates a new UUID string
+func generateUUID() string {
+	return strings.ReplaceAll(uuid.New().String(), "-", "")
 }

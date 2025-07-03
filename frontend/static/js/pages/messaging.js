@@ -1,7 +1,46 @@
 // Simple messaging page functionality based on reference implementation
 class MessagingPage {
     constructor() {
-        this.currentUser = localStorage.getItem('username');
+        // Get current user from the authentication system
+        if (window.auth && window.auth.isLoggedIn()) {
+            const user = window.auth.getCurrentUser();
+            this.currentUser = user ? user.nickname : null;
+            console.log('✅ Current user from auth system:', this.currentUser);
+        } else {
+            // Fallback: try localStorage
+            this.currentUser = localStorage.getItem('username');
+            console.log('🔍 Current user from localStorage:', this.currentUser);
+        }
+
+        // Additional fallbacks if still no user
+        if (!this.currentUser) {
+            // Try to get from session storage
+            this.currentUser = sessionStorage.getItem('username');
+            console.log('🔍 Current user from sessionStorage:', this.currentUser);
+        }
+
+        if (!this.currentUser) {
+            // Try to get from cookie
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'username') {
+                    this.currentUser = decodeURIComponent(value);
+                    console.log('🔍 Current user from cookie:', this.currentUser);
+                    break;
+                }
+            }
+        }
+
+        if (!this.currentUser) {
+            console.error('❌ No current user found! User needs to login.');
+            // Redirect to login or show error
+            this.showError('Please login to use messaging');
+            return;
+        }
+
+        console.log('✅ Current user identified:', this.currentUser);
+
         this.users = [];
         this.sessions = [];
         this.chats = [];

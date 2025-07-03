@@ -1,7 +1,24 @@
 // Simple messaging implementation based on reference
 class SimpleMessaging {
     constructor() {
-        this.currentUser = localStorage.getItem('username');
+        // Get current user from the authentication system
+        if (window.auth && window.auth.isLoggedIn()) {
+            const user = window.auth.getCurrentUser();
+            this.currentUser = user ? user.nickname : null;
+            console.log('✅ Current user from auth system:', this.currentUser);
+        } else {
+            // Fallback: try localStorage
+            this.currentUser = localStorage.getItem('username');
+            console.log('🔍 Current user from localStorage:', this.currentUser);
+        }
+
+        if (!this.currentUser) {
+            console.error('❌ No current user found! User needs to login.');
+            return;
+        }
+
+        console.log('✅ Current user identified:', this.currentUser);
+
         this.users = [];
         this.sessions = [];
         this.chats = [];
@@ -11,7 +28,7 @@ class SimpleMessaging {
         this.websocket = null;
         this.notifications = new Map(); // Track notifications per user
         this.initNotificationSound();
-        
+
         this.init();
     }
 
