@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"forum/internal/auth"
+	"forum/internal/chat"
 	"forum/internal/database"
 	"forum/internal/handlers"
 	"forum/internal/websocket"
@@ -30,7 +31,7 @@ var validFrontendRoutes = map[string]bool{
 func main() {
 	// Initialize database
 	if err := database.Initialize(); err != nil {
-		log.Fatal("❌ Failed to initialize database:", err)
+		log.Fatal(" Failed to initialize database:", err)
 	}
 	defer database.Close()
 
@@ -40,8 +41,12 @@ func main() {
 	// Initialize WebSocket hub
 	websocket.InitializeHub()
 
+	// Initialize chat server
+	chatServer := chat.NewChatServer(database.DB)
+	go chatServer.RunRoutine()
+
 	// Setup routes
-	setupRoutes()
+	setupRoutes(chatServer)
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")
@@ -50,9 +55,9 @@ func main() {
 	}
 
 	// Display startup information
-	fmt.Println("✅ Database initialized successfully")
-	fmt.Println("✅ WebSocket hub initialized")
-	fmt.Printf("🚀 Server starting on port %s\n", port)
+	fmt.Println("Database initialized successfully")
+	fmt.Println("✅WebSocket hub initialized")
+	fmt.Printf("Server starting on port %s\n", port)
 	fmt.Printf("🌐 Access the forum at: http://localhost:%s\n", port)
 	fmt.Println("📊 Database: forum.db")
 	fmt.Println("🌐 Frontend: Modern SPA with real-time features")
@@ -63,7 +68,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
-func setupRoutes() {
+func setupRoutes(chatServer *chat.ChatServer) {
 	// Static files
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("frontend/static/"))))
 
@@ -101,11 +106,17 @@ func setupRoutes() {
 
 	http.HandleFunc("/api/online-users", handlers.OnlineUsersHandler)
 
-	// Messaging endpoints
-	http.HandleFunc("/api/conversations", handlers.ConversationsHandler)
-	http.HandleFunc("/api/messages", handlers.MessagesHandler)
-	http.HandleFunc("/api/messages/", handlers.MessagesHandler)
-	http.HandleFunc("/api/users/search", handlers.UserSearchHandler)
+	// Messaging endpoints - using new simple handlers
+	http.HandleFunc("/api/chats", handlers.CreateChatHandler(database.DB))
+	http.HandleFunc("/api/messages", handlers.GetMessagesHandler(database.DB))
+	http.HandleFunc("/api/sessions", handlers.GetOnlineUsersHandler(database.DB))
+	http.HandleFunc("/api/users", handlers.GetAllUsersHandler(database.DB))
+
+	// WebSocket chat endpoint
+	http.HandleFunc("/chat/", handlers.ChatWebSocketHandler(database.DB))
+
+	// Generic API handler for compatibility
+	http.HandleFunc("/api/", handlers.APIHandler(database.DB))
 
 	// Avatar upload routes
 	http.HandleFunc("/api/upload/avatar", handlers.AvatarUploadHandler)

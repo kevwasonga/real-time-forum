@@ -1,565 +1,405 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
-	"forum/internal/auth"
-	"forum/internal/database"
-	"forum/internal/models"
+	"github.com/gorilla/websocket"
 )
 
-// ConversationsHandler handles conversation listing
-func ConversationsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	user := auth.GetUserFromSession(r)
-	if user == nil {
-		RenderError(w, "Authentication required", http.StatusUnauthorized)
-		return
-	}
-
-	conversations, err := getConversations(user.ID)
-	if err != nil {
-		log.Printf("Error getting conversations: %v", err)
-		RenderError(w, "Failed to get conversations", http.StatusInternalServerError)
-		return
-	}
-
-	response := models.ConversationResponse{
-		Conversations: conversations,
-		TotalCount:    len(conversations),
-	}
-
-	RenderSuccess(w, "Conversations retrieved successfully", response)
-}
-
-// MessagesHandler handles message operations
-func MessagesHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		getMessagesHandler(w, r)
-	case http.MethodPost:
-		sendMessageHandler(w, r)
-	default:
-		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-// getMessagesHandler gets messages for a conversation
-func getMessagesHandler(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromSession(r)
-	if user == nil {
-		RenderError(w, "Authentication required", http.StatusUnauthorized)
-		return
-	}
-
-	// Extract conversation ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/api/messages/")
-	conversationID := strings.Split(path, "/")[0]
-
-	if conversationID == "" {
-		RenderError(w, "Conversation ID required", http.StatusBadRequest)
-		return
-	}
-
-	// Parse pagination parameters
-	page := 1
-	limit := 50
-	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
+// CreateChatHandler handles creating new chats between users
+func CreateChatHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
 		}
-	}
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
-			limit = l
+
+		// Parse request body
+		var requestData struct {
+			User1 string `json:"user1"`
+			User2 string `json:"user2"`
 		}
-	}
 
-	// Verify user is part of the conversation
-	if !isUserInConversation(user.ID, conversationID) {
-		RenderError(w, "Access denied", http.StatusForbidden)
-		return
-	}
+		if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
 
-	messages, totalCount, err := getMessages(conversationID, page, limit)
-	if err != nil {
-		log.Printf("Error getting messages: %v", err)
-		RenderError(w, "Failed to get messages", http.StatusInternalServerError)
-		return
-	}
+		// Check if chat already exists (in either direction)
+		var exists bool
+		err := db.QueryRow(`
+			SELECT EXISTS(
+				SELECT 1 FROM chats
+				WHERE (user1 = ? AND user2 = ?) OR (user1 = ? AND user2 = ?)
+			)`, requestData.User1, requestData.User2, requestData.User2, requestData.User1).Scan(&exists)
 
-	// Mark messages as read
-	go markMessagesAsRead(conversationID, user.ID)
-
-	response := models.MessagesResponse{
-		Messages:   messages,
-		TotalCount: totalCount,
-		HasMore:    (page * limit) < totalCount,
-	}
-
-	RenderSuccess(w, "Messages retrieved successfully", response)
-}
-
-// sendMessageHandler sends a new message
-func sendMessageHandler(w http.ResponseWriter, r *http.Request) {
-	user := auth.GetUserFromSession(r)
-	if user == nil {
-		RenderError(w, "Authentication required", http.StatusUnauthorized)
-		return
-	}
-
-	var req models.MessageRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		RenderError(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	if req.Content == "" {
-		RenderError(w, "Message content is required", http.StatusBadRequest)
-		return
-	}
-
-	if req.RecipientID == "" {
-		RenderError(w, "Recipient ID is required", http.StatusBadRequest)
-		return
-	}
-
-	if req.RecipientID == user.ID {
-		RenderError(w, "Cannot send message to yourself", http.StatusBadRequest)
-		return
-	}
-
-	// Verify recipient exists
-	if !userExists(req.RecipientID) {
-		RenderError(w, "Recipient not found", http.StatusNotFound)
-		return
-	}
-
-	// Get or create conversation
-	conversationID, err := getOrCreateConversation(user.ID, req.RecipientID)
-	if err != nil {
-		log.Printf("Error getting/creating conversation: %v", err)
-		RenderError(w, "Failed to create conversation", http.StatusInternalServerError)
-		return
-	}
-
-	// Create message
-	messageType := req.MessageType
-	if messageType == "" {
-		messageType = "text"
-	}
-
-	message, err := createMessage(conversationID, user.ID, req.Content, messageType)
-	if err != nil {
-		log.Printf("Error creating message: %v", err)
-		RenderError(w, "Failed to send message", http.StatusInternalServerError)
-		return
-	}
-
-	// Send real-time notification
-	go sendMessageNotification(req.RecipientID, conversationID, message)
-
-	RenderSuccess(w, "Message sent successfully", message)
-}
-
-// UserSearchHandler handles user search for messaging
-func UserSearchHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	user := auth.GetUserFromSession(r)
-	if user == nil {
-		RenderError(w, "Authentication required", http.StatusUnauthorized)
-		return
-	}
-
-	query := r.URL.Query().Get("q")
-	if query == "" {
-		RenderError(w, "Search query is required", http.StatusBadRequest)
-		return
-	}
-
-	users, err := searchUsers(query, user.ID)
-	if err != nil {
-		log.Printf("Error searching users: %v", err)
-		RenderError(w, "Failed to search users", http.StatusInternalServerError)
-		return
-	}
-
-	response := models.UserSearchResponse{
-		Users: users,
-		Total: len(users),
-	}
-
-	RenderSuccess(w, "Users found", response)
-}
-
-// MarkAsReadHandler marks messages as read
-func MarkAsReadHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		RenderError(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	user := auth.GetUserFromSession(r)
-	if user == nil {
-		RenderError(w, "Authentication required", http.StatusUnauthorized)
-		return
-	}
-
-	// Extract conversation ID from URL
-	path := strings.TrimPrefix(r.URL.Path, "/api/messages/")
-	conversationID := strings.TrimSuffix(path, "/read")
-
-	if conversationID == "" {
-		RenderError(w, "Conversation ID required", http.StatusBadRequest)
-		return
-	}
-
-	if !isUserInConversation(user.ID, conversationID) {
-		RenderError(w, "Access denied", http.StatusForbidden)
-		return
-	}
-
-	err := markMessagesAsRead(conversationID, user.ID)
-	if err != nil {
-		log.Printf("Error marking messages as read: %v", err)
-		RenderError(w, "Failed to mark messages as read", http.StatusInternalServerError)
-		return
-	}
-
-	RenderSuccess(w, "Messages marked as read", nil)
-}
-
-// Helper function to generate unique IDs
-func generateID(prefix string) string {
-	return fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano())
-}
-
-// Database helper functions
-
-// getConversations gets all conversations for a user
-func getConversations(userID string) ([]models.Conversation, error) {
-	query := `
-		SELECT DISTINCT
-			c.id,
-			c.participant1_id,
-			c.participant2_id,
-			c.created_at,
-			c.updated_at,
-			CASE
-				WHEN c.participant1_id = ? THEN u2.id
-				ELSE u1.id
-			END as other_user_id,
-			CASE
-				WHEN c.participant1_id = ? THEN u2.nickname
-				ELSE u1.nickname
-			END as other_user_nickname,
-			CASE
-				WHEN c.participant1_id = ? THEN u2.first_name
-				ELSE u1.first_name
-			END as other_user_first_name,
-			CASE
-				WHEN c.participant1_id = ? THEN u2.last_name
-				ELSE u1.last_name
-			END as other_user_last_name,
-			CASE
-				WHEN c.participant1_id = ? THEN u2.avatar_url
-				ELSE u1.avatar_url
-			END as other_user_avatar,
-			m.content as last_message_content,
-			m.created_at as last_message_time,
-			(SELECT COUNT(*) FROM messages WHERE conversation_id = c.id AND sender_id != ? AND is_read = FALSE) as unread_count
-		FROM conversations c
-		LEFT JOIN users u1 ON c.participant1_id = u1.id
-		LEFT JOIN users u2 ON c.participant2_id = u2.id
-		LEFT JOIN messages m ON m.id = (
-			SELECT id FROM messages
-			WHERE conversation_id = c.id
-			ORDER BY created_at DESC
-			LIMIT 1
-		)
-		WHERE c.participant1_id = ? OR c.participant2_id = ?
-		ORDER BY COALESCE(m.created_at, c.created_at) DESC
-	`
-
-	rows, err := database.DB.Query(query, userID, userID, userID, userID, userID, userID, userID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var conversations []models.Conversation
-	for rows.Next() {
-		var conv models.Conversation
-		var otherUser models.User
-		var lastMessageContent, lastMessageTime interface{}
-
-		err := rows.Scan(
-			&conv.ID,
-			&conv.Participant1ID,
-			&conv.Participant2ID,
-			&conv.CreatedAt,
-			&conv.UpdatedAt,
-			&otherUser.ID,
-			&otherUser.Nickname,
-			&otherUser.FirstName,
-			&otherUser.LastName,
-			&otherUser.AvatarURL,
-			&lastMessageContent,
-			&lastMessageTime,
-			&conv.UnreadCount,
-		)
 		if err != nil {
-			return nil, err
+			log.Printf("Error checking chat existence: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
 		}
 
-		conv.OtherUser = &otherUser
-
-		// Add last message if exists
-		if lastMessageContent != nil {
-			lastMsg := &models.Message{
-				Content: lastMessageContent.(string),
+		if !exists {
+			// Create new chat
+			_, err = db.Exec("INSERT INTO chats (user1, user2) VALUES (?, ?)",
+				requestData.User1, requestData.User2)
+			if err != nil {
+				log.Printf("Error creating chat: %v", err)
+				http.Error(w, "Failed to create chat", http.StatusInternalServerError)
+				return
 			}
-			if lastMessageTime != nil {
-				if timeStr, ok := lastMessageTime.(string); ok {
-					if parsedTime, err := time.Parse("2006-01-02 15:04:05", timeStr); err == nil {
-						lastMsg.CreatedAt = parsedTime
-					}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Chat created successfully",
+		})
+	}
+}
+
+// GetChatsHandler returns all chats for the current user
+func GetChatsHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Get current user from session
+		username := getCurrentUser(r, db)
+		if username == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Get all chats involving this user
+		rows, err := db.Query(`
+			SELECT user1, user2 FROM chats
+			WHERE user1 = ? OR user2 = ?
+		`, username, username)
+
+		if err != nil {
+			log.Printf("Error fetching chats: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var chats []map[string]string
+		for rows.Next() {
+			var user1, user2 string
+			if err := rows.Scan(&user1, &user2); err != nil {
+				log.Printf("Error scanning chat: %v", err)
+				continue
+			}
+			chats = append(chats, map[string]string{
+				"user1": user1,
+				"user2": user2,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(chats)
+	}
+}
+
+// GetMessagesHandler returns messages for a specific chat
+func GetMessagesHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Get current user from session
+		username := getCurrentUser(r, db)
+		if username == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// Get other user from query params
+		otherUser := r.URL.Query().Get("user")
+		if otherUser == "" {
+			http.Error(w, "Missing user parameter", http.StatusBadRequest)
+			return
+		}
+
+		// Get messages between these two users
+		rows, err := db.Query(`
+			SELECT sender, receiver, message, time, status
+			FROM messages
+			WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)
+			ORDER BY time ASC
+		`, username, otherUser, otherUser, username)
+
+		if err != nil {
+			log.Printf("Error fetching messages: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		var messages []map[string]interface{}
+		for rows.Next() {
+			var sender, receiver, message, time, status string
+			if err := rows.Scan(&sender, &receiver, &message, &time, &status); err != nil {
+				log.Printf("Error scanning message: %v", err)
+				continue
+			}
+			messages = append(messages, map[string]interface{}{
+				"sender":   sender,
+				"receiver": receiver,
+				"message":  message,
+				"time":     time,
+				"status":   status,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(messages)
+	}
+}
+
+// GetOnlineUsersHandler returns list of online users
+func GetOnlineUsersHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Get all active online users
+		rows, err := db.Query(`
+			SELECT DISTINCT u.nickname
+			FROM online_users ou
+			JOIN users u ON ou.user_id = u.id
+			WHERE ou.last_seen > datetime('now', '-5 minutes')
+		`)
+		if err != nil {
+			log.Printf("Error fetching online users: %v", err)
+			// Return empty array instead of error for now
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]map[string]interface{}{})
+			return
+		}
+		defer rows.Close()
+
+		var users []map[string]interface{}
+		for rows.Next() {
+			var username string
+			if err := rows.Scan(&username); err != nil {
+				log.Printf("Error scanning online user: %v", err)
+				continue
+			}
+			users = append(users, map[string]interface{}{
+				"username": username,
+				"online":   true,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(users)
+	}
+}
+
+// GetAllUsersHandler returns all users for chat selection
+func GetAllUsersHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Get current user (skip auth for testing)
+		currentUser := getCurrentUser(r, db)
+		if currentUser == "" {
+			// For testing, continue without auth
+			currentUser = "anonymous"
+		}
+
+		// Get all users except current user
+		rows, err := db.Query("SELECT nickname FROM users WHERE nickname != ?", currentUser)
+		if err != nil {
+			log.Printf("Error fetching users: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+		defer rows.Close()
+
+		// Get online users
+		onlineRows, err := db.Query(`
+			SELECT DISTINCT u.nickname
+			FROM online_users ou
+			JOIN users u ON ou.user_id = u.id
+			WHERE ou.last_seen > datetime('now', '-5 minutes')
+		`)
+		onlineUsers := make(map[string]bool)
+		if err != nil {
+			log.Printf("Error fetching online users: %v", err)
+			// Continue without online status for now
+		} else {
+			defer onlineRows.Close()
+			for onlineRows.Next() {
+				var username string
+				if err := onlineRows.Scan(&username); err != nil {
+					continue
 				}
+				onlineUsers[username] = true
 			}
-			conv.LastMessage = lastMsg
 		}
 
-		conversations = append(conversations, conv)
-	}
+		var users []map[string]interface{}
+		for rows.Next() {
+			var username string
+			if err := rows.Scan(&username); err != nil {
+				log.Printf("Error scanning user: %v", err)
+				continue
+			}
+			users = append(users, map[string]interface{}{
+				"username": username,
+				"online":   onlineUsers[username],
+			})
+		}
 
-	return conversations, nil
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(users)
+	}
 }
 
-// getMessages gets messages for a conversation with pagination
-func getMessages(conversationID string, page, limit int) ([]models.Message, int, error) {
-	// Get total count
-	var totalCount int
-	err := database.DB.QueryRow("SELECT COUNT(*) FROM messages WHERE conversation_id = ?", conversationID).Scan(&totalCount)
+// Helper function to get current user from session
+func getCurrentUser(r *http.Request, db *sql.DB) string {
+	// Get session cookie
+	cookie, err := r.Cookie("session")
 	if err != nil {
-		return nil, 0, err
+		return ""
 	}
 
-	// Get messages with pagination
-	offset := (page - 1) * limit
-	query := `
-		SELECT
-			m.id,
-			m.conversation_id,
-			m.sender_id,
-			m.content,
-			m.message_type,
-			m.is_read,
-			m.created_at,
-			u.nickname,
-			u.first_name,
-			u.last_name,
-			u.avatar_url
-		FROM messages m
-		LEFT JOIN users u ON m.sender_id = u.id
-		WHERE m.conversation_id = ?
-		ORDER BY m.created_at DESC
-		LIMIT ? OFFSET ?
-	`
-
-	rows, err := database.DB.Query(query, conversationID, limit, offset)
+	// Look up session in database
+	var username string
+	err = db.QueryRow(`
+		SELECT u.nickname
+		FROM sessions s
+		JOIN users u ON s.user_id = u.id
+		WHERE s.id = ? AND s.expires_at > datetime('now')
+	`, cookie.Value).Scan(&username)
 	if err != nil {
-		return nil, 0, err
+		return ""
 	}
-	defer rows.Close()
 
-	var messages []models.Message
-	for rows.Next() {
-		var msg models.Message
-		var sender models.User
+	return username
+}
 
-		err := rows.Scan(
-			&msg.ID,
-			&msg.ConversationID,
-			&msg.SenderID,
-			&msg.Content,
-			&msg.MessageType,
-			&msg.IsRead,
-			&msg.CreatedAt,
-			&sender.Nickname,
-			&sender.FirstName,
-			&sender.LastName,
-			&sender.AvatarURL,
-		)
+// Generic API handler for compatibility with existing frontend
+func APIHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Parse the path to determine what data is requested
+		path := strings.TrimPrefix(r.URL.Path, "/api/")
+
+		switch path {
+		case "chats":
+			GetChatsHandler(db)(w, r)
+		case "sessions":
+			GetOnlineUsersHandler(db)(w, r)
+		case "messages":
+			GetMessagesHandler(db)(w, r)
+		case "users":
+			GetAllUsersHandler(db)(w, r)
+		default:
+			http.Error(w, "Not found", http.StatusNotFound)
+		}
+	}
+}
+
+// WebSocket upgrader
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Allow all origins for development
+	},
+}
+
+// ChatWebSocketHandler handles WebSocket connections for real-time chat
+func ChatWebSocketHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Extract chat room from URL path
+		path := strings.TrimPrefix(r.URL.Path, "/chat/")
+		if path == "" {
+			http.Error(w, "Chat room required", http.StatusBadRequest)
+			return
+		}
+
+		log.Printf("🔌 WebSocket connection request for room: %s", path)
+
+		// Upgrade HTTP connection to WebSocket
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			return nil, 0, err
+			log.Printf("❌ WebSocket upgrade failed: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		log.Printf("✅ WebSocket connection established for room: %s", path)
+
+		// Handle messages
+		for {
+			var message struct {
+				Message  string `json:"message"`
+				Sender   string `json:"sender"`
+				Receiver string `json:"receiver"`
+				Status   string `json:"status"`
+			}
+
+			// Read message from WebSocket
+			err := conn.ReadJSON(&message)
+			if err != nil {
+				log.Printf("❌ Error reading WebSocket message: %v", err)
+				break
+			}
+
+			log.Printf("📨 Received message: %+v", message)
+
+			// Save message to database
+			_, err = db.Exec(`
+				INSERT INTO messages (sender, receiver, message, time, status)
+				VALUES (?, ?, ?, ?, ?)
+			`, message.Sender, message.Receiver, message.Message, time.Now().Format("2006-01-02 15:04:05"), "unread")
+
+			if err != nil {
+				log.Printf("❌ Error saving message to database: %v", err)
+				continue
+			}
+
+			// Add timestamp for response
+			response := struct {
+				Message  string `json:"message"`
+				Sender   string `json:"sender"`
+				Receiver string `json:"receiver"`
+				Time     string `json:"time"`
+				Status   string `json:"status"`
+			}{
+				Message:  message.Message,
+				Sender:   message.Sender,
+				Receiver: message.Receiver,
+				Time:     time.Now().Format("15:04:05"),
+				Status:   "sent",
+			}
+
+			// Echo message back to sender (for confirmation)
+			err = conn.WriteJSON(response)
+			if err != nil {
+				log.Printf("❌ Error sending WebSocket response: %v", err)
+				break
+			}
+
+			log.Printf("✅ Message saved and echoed back")
 		}
 
-		sender.ID = msg.SenderID
-		msg.Sender = &sender
-		messages = append(messages, msg)
+		log.Printf("🔌 WebSocket connection closed for room: %s", path)
 	}
-
-	// Reverse to get chronological order
-	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
-		messages[i], messages[j] = messages[j], messages[i]
-	}
-
-	return messages, totalCount, nil
-}
-
-// getOrCreateConversation gets existing conversation or creates a new one
-func getOrCreateConversation(userID1, userID2 string) (string, error) {
-	// Check if conversation already exists
-	var conversationID string
-	query := `
-		SELECT id FROM conversations
-		WHERE (participant1_id = ? AND participant2_id = ?)
-		   OR (participant1_id = ? AND participant2_id = ?)
-	`
-	err := database.DB.QueryRow(query, userID1, userID2, userID2, userID1).Scan(&conversationID)
-	if err == nil {
-		return conversationID, nil
-	}
-
-	// Create new conversation
-	conversationID = generateID("conv")
-	_, err = database.DB.Exec(`
-		INSERT INTO conversations (id, participant1_id, participant2_id, created_at, updated_at)
-		VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-	`, conversationID, userID1, userID2)
-
-	return conversationID, err
-}
-
-// createMessage creates a new message
-func createMessage(conversationID, senderID, content, messageType string) (*models.Message, error) {
-	messageID := generateID("msg")
-
-	_, err := database.DB.Exec(`
-		INSERT INTO messages (id, conversation_id, sender_id, content, message_type, created_at)
-		VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-	`, messageID, conversationID, senderID, content, messageType)
-	if err != nil {
-		return nil, err
-	}
-
-	// Update conversation timestamp
-	_, err = database.DB.Exec(`
-		UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?
-	`, conversationID)
-	if err != nil {
-		log.Printf("Warning: Failed to update conversation timestamp: %v", err)
-	}
-
-	// Get the created message with sender info
-	message := &models.Message{
-		ID:             messageID,
-		ConversationID: conversationID,
-		SenderID:       senderID,
-		Content:        content,
-		MessageType:    messageType,
-		IsRead:         false,
-		CreatedAt:      time.Now(),
-	}
-
-	// Get sender info
-	var sender models.User
-	err = database.DB.QueryRow(`
-		SELECT id, nickname, first_name, last_name, avatar_url
-		FROM users WHERE id = ?
-	`, senderID).Scan(&sender.ID, &sender.Nickname, &sender.FirstName, &sender.LastName, &sender.AvatarURL)
-	if err == nil {
-		message.Sender = &sender
-	}
-
-	return message, nil
-}
-
-// isUserInConversation checks if user is part of conversation
-func isUserInConversation(userID, conversationID string) bool {
-	var count int
-	err := database.DB.QueryRow(`
-		SELECT COUNT(*) FROM conversations
-		WHERE id = ? AND (participant1_id = ? OR participant2_id = ?)
-	`, conversationID, userID, userID).Scan(&count)
-	return err == nil && count > 0
-}
-
-// markMessagesAsRead marks all unread messages in conversation as read for user
-func markMessagesAsRead(conversationID, userID string) error {
-	_, err := database.DB.Exec(`
-		UPDATE messages
-		SET is_read = TRUE
-		WHERE conversation_id = ? AND sender_id != ? AND is_read = FALSE
-	`, conversationID, userID)
-	return err
-}
-
-// userExists checks if a user exists
-func userExists(userID string) bool {
-	var count int
-	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE id = ?", userID).Scan(&count)
-	return err == nil && count > 0
-}
-
-// searchUsers searches for users by nickname or name
-func searchUsers(query, excludeUserID string) ([]models.User, error) {
-	searchQuery := `
-		SELECT id, nickname, first_name, last_name, avatar_url
-		FROM users
-		WHERE id != ? AND (
-			nickname LIKE ? OR
-			first_name LIKE ? OR
-			last_name LIKE ?
-		)
-		ORDER BY nickname
-		LIMIT 20
-	`
-
-	searchTerm := "%" + query + "%"
-	rows, err := database.DB.Query(searchQuery, excludeUserID, searchTerm, searchTerm, searchTerm)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var users []models.User
-	for rows.Next() {
-		var user models.User
-		err := rows.Scan(&user.ID, &user.Nickname, &user.FirstName, &user.LastName, &user.AvatarURL)
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, user)
-	}
-
-	return users, nil
-}
-
-// sendMessageNotification sends real-time notification
-func sendMessageNotification(recipientID, conversationID string, message *models.Message) {
-	notification := models.MessageNotification{
-		Type:           "new_message",
-		ConversationID: conversationID,
-		Message:        *message,
-		Timestamp:      time.Now(),
-	}
-
-	// Send via WebSocket (implement this when WebSocket is ready)
-	log.Printf("📨 New message notification for user %s in conversation %s", recipientID, conversationID)
-	_ = notification // Prevent unused variable error
 }

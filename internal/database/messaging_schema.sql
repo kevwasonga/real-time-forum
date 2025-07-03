@@ -1,36 +1,27 @@
--- New messaging system schema
+-- Messaging system schema based on reference implementation
 -- Drop existing tables if they exist
-DROP TABLE IF EXISTS conversations;
+DROP TABLE IF EXISTS chats;
 DROP TABLE IF EXISTS messages;
 
--- Create conversations table
-CREATE TABLE IF NOT EXISTS conversations (
-    id TEXT PRIMARY KEY,
-    participant1_id TEXT NOT NULL,
-    participant2_id TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (participant1_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (participant2_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(participant1_id, participant2_id)
+-- Create chats table (equivalent to conversations)
+CREATE TABLE IF NOT EXISTS chats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user1 VARCHAR(255) NOT NULL,
+    user2 VARCHAR(255) NOT NULL
 );
 
 -- Create messages table
 CREATE TABLE IF NOT EXISTS messages (
-    id TEXT PRIMARY KEY,
-    conversation_id TEXT NOT NULL,
-    sender_id TEXT NOT NULL,
-    content TEXT NOT NULL,
-    message_type TEXT DEFAULT 'text', -- 'text', 'image', 'file'
-    is_read BOOLEAN DEFAULT FALSE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-    FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender VARCHAR(64),
+    receiver VARCHAR(64),
+    message TEXT,
+    time TEXT NOT NULL,
+    status VARCHAR(64)
 );
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_conversations_participants ON conversations(participant1_id, participant2_id);
-CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
-CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
-CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
-CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(is_read, conversation_id);
+CREATE INDEX IF NOT EXISTS idx_chats_users ON chats(user1, user2);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver);
+CREATE INDEX IF NOT EXISTS idx_messages_time ON messages(time);
