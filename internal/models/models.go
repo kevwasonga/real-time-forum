@@ -84,6 +84,39 @@ type OnlineUser struct {
 	LastSeen  time.Time `json:"lastSeen" db:"last_seen"`
 }
 
+// Message represents a private message between users
+type Message struct {
+	ID         string    `json:"id" db:"id"`
+	SenderID   string    `json:"senderId" db:"sender_id"`
+	ReceiverID string    `json:"receiverId" db:"receiver_id"`
+	Content    string    `json:"content" db:"content"`
+	IsRead     bool      `json:"isRead" db:"is_read"`
+	CreatedAt  time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt  time.Time `json:"updatedAt" db:"updated_at"`
+	// Additional fields for frontend display
+	SenderNickname   string  `json:"senderNickname,omitempty" db:"sender_nickname"`
+	SenderAvatarURL  *string `json:"senderAvatarUrl,omitempty" db:"sender_avatar_url"`
+	ReceiverNickname string  `json:"receiverNickname,omitempty" db:"receiver_nickname"`
+}
+
+// Conversation represents a conversation between two users
+type Conversation struct {
+	ID              string    `json:"id" db:"id"`
+	User1ID         string    `json:"user1Id" db:"user1_id"`
+	User2ID         string    `json:"user2Id" db:"user2_id"`
+	LastMessageID   *string   `json:"lastMessageId,omitempty" db:"last_message_id"`
+	LastMessageTime time.Time `json:"lastMessageTime" db:"last_message_time"`
+	CreatedAt       time.Time `json:"createdAt" db:"created_at"`
+	UpdatedAt       time.Time `json:"updatedAt" db:"updated_at"`
+	// Additional fields for frontend display
+	OtherUserID       string  `json:"otherUserId,omitempty"`
+	OtherUserNickname string  `json:"otherUserNickname,omitempty"`
+	OtherUserAvatar   *string `json:"otherUserAvatar,omitempty"`
+	LastMessage       string  `json:"lastMessage,omitempty"`
+	UnreadCount       int     `json:"unreadCount,omitempty"`
+	IsOnline          bool    `json:"isOnline,omitempty"`
+}
+
 // Category represents a post category
 type Category struct {
 	Name      string `json:"name" db:"name"`
@@ -131,6 +164,18 @@ type LikeRequest struct {
 	IsLike    bool `json:"isLike"`
 }
 
+// MessageRequest represents the message sending request payload
+type MessageRequest struct {
+	ReceiverID string `json:"receiverId"`
+	Content    string `json:"content"`
+}
+
+// ConversationRequest represents the conversation creation request payload
+type ConversationRequest struct {
+	User1ID string `json:"user1Id"`
+	User2ID string `json:"user2Id"`
+}
+
 // APIResponse represents a standard API response
 type APIResponse struct {
 	Success bool        `json:"success"`
@@ -154,16 +199,22 @@ type NotificationData struct {
 	PostID  *int   `json:"postId,omitempty"`
 }
 
+// UserStatusData represents user online/offline status for WebSocket
+type UserStatusData struct {
+	UserID   string `json:"userId"`
+	Nickname string `json:"nickname"`
+	Status   string `json:"status"` // "online" or "offline"
+}
+
+// MessageData represents message data for WebSocket
+type MessageData struct {
+	Message *Message `json:"message"`
+	Type    string   `json:"type"` // "new_message", "message_read", etc.
+}
+
 // TypingIndicatorData represents typing indicator data
 type TypingIndicatorData struct {
 	UserID     string `json:"userId"`
 	ReceiverID string `json:"receiverId"`
 	IsTyping   bool   `json:"isTyping"`
-}
-
-// UserStatusData represents user online/offline status
-type UserStatusData struct {
-	UserID   string `json:"userId"`
-	Nickname string `json:"nickname"`
-	Status   string `json:"status"` // "online" or "offline"
 }

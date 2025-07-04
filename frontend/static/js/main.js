@@ -3,7 +3,6 @@
 window.forumApp = {
     // Core components
     router: null,
-    websocket: null,
     currentUser: null,
     isAuthenticated: false,
     currentPage: null,
@@ -33,10 +32,10 @@ window.forumApp = {
             // Initialize components
             this.initComponents();
 
-            // Initialize WebSocket if authenticated
-            if (this.isAuthenticated) {
-                this.initWebSocket();
-            }
+            // Skip general WebSocket - using dedicated messaging WebSocket instead
+            // if (this.isAuthenticated) {
+            //     this.initWebSocket();
+            // }
 
             // Update UI based on auth state
             this.updateAuthUI();
@@ -253,45 +252,7 @@ window.forumApp = {
         this.router.init();
     },
 
-    /**
-     * Initialize WebSocket connection
-     */
-    initWebSocket() {
-        if (!this.isAuthenticated) {
-            console.log('ℹ️ Skipping WebSocket initialization - user not authenticated');
-            return;
-        }
-
-        this.websocket = new window.WebSocketClient();
-        
-        // Set up event listeners
-        this.websocket.addEventListener('connected', () => {
-            console.log('✅ WebSocket connected');
-            if (this.notificationComponent) {
-                this.notificationComponent.success('Connected to real-time updates');
-            }
-
-            // Immediately fetch online users when WebSocket connects
-            if (this.sidebarComponent) {
-                console.log('👥 Triggering online users update after WebSocket connection');
-                this.sidebarComponent.updateOnlineUsers();
-            }
-        });
-
-        this.websocket.addEventListener('disconnected', () => {
-            console.log('🔌 WebSocket disconnected');
-            if (this.notificationComponent) {
-                this.notificationComponent.warning('Lost connection to real-time updates');
-            }
-        });
-
-        this.websocket.addEventListener('error', (error) => {
-            console.error('❌ WebSocket error:', error);
-        });
-
-        // Connect to WebSocket
-        this.websocket.connect();
-    },
+    // WebSocket functionality removed - using dedicated messaging WebSocket only
 
     /**
      * Update UI based on authentication state
@@ -356,11 +317,7 @@ window.forumApp = {
             this.currentUser = null;
             this.isAuthenticated = false;
 
-            // Disconnect WebSocket
-            if (this.websocket) {
-                this.websocket.disconnect();
-                this.websocket = null;
-            }
+            // WebSocket cleanup removed - using dedicated messaging WebSocket only
 
             // Update UI
             this.updateAuthUI();
@@ -387,8 +344,8 @@ window.forumApp = {
         this.currentUser = user;
         this.isAuthenticated = true;
 
-        // Initialize WebSocket
-        this.initWebSocket();
+        // Skip general WebSocket - using dedicated messaging WebSocket instead
+        // this.initWebSocket();
 
         // Update UI
         this.updateAuthUI();
@@ -581,33 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.forumApp.init();
 });
 
-// Handle page visibility changes
-document.addEventListener('visibilitychange', () => {
-    if (window.forumApp.websocket) {
-        if (document.hidden) {
-            // Page is hidden, could pause some activities
-            console.log('📱 Page hidden');
-        } else {
-            // Page is visible, resume activities
-            console.log('📱 Page visible');
-            // Reconnect WebSocket if needed
-            if (!window.forumApp.websocket.isConnected) {
-                window.forumApp.websocket.connect();
-            }
-        }
-    }
-});
-
-// Handle online/offline events
-window.addEventListener('online', () => {
-    console.log('🌐 Back online');
-    if (window.forumApp.websocket && !window.forumApp.websocket.isConnected) {
-        window.forumApp.websocket.connect();
-    }
-    if (window.forumApp.notificationComponent) {
-        window.forumApp.notificationComponent.success('Connection restored');
-    }
-});
+// Page visibility and online/offline handling removed - using dedicated messaging WebSocket only
 
 window.addEventListener('offline', () => {
     console.log('📴 Gone offline');

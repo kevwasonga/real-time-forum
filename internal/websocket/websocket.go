@@ -193,6 +193,34 @@ func (h *Hub) BroadcastMessage(message []byte) {
 	h.broadcast <- message
 }
 
+// BroadcastToUser sends a message to a specific user (all their sessions)
+func (h *Hub) BroadcastToUser(userID string, wsMessage models.WebSocketMessage) {
+	h.mutex.RLock()
+	clients := h.userClients[userID]
+	h.mutex.RUnlock()
+
+	if len(clients) == 0 {
+		log.Printf("No active sessions found for user %s", userID)
+		return
+	}
+
+	data, err := json.Marshal(wsMessage)
+	if err != nil {
+		log.Printf("Error marshaling message for user %s: %v", userID, err)
+		return
+	}
+
+	for _, client := range clients {
+		select {
+		case client.Send <- data:
+		default:
+			log.Printf("Failed to send message to client %s", client.ID)
+		}
+	}
+
+	log.Printf("Broadcasted message to user %s (%d sessions)", userID, len(clients))
+}
+
 // GetOnlineUsers returns a list of online user IDs
 func (h *Hub) GetOnlineUsers() []string {
 	h.mutex.RLock()
@@ -316,6 +344,11 @@ func InitializeHub() {
 	log.Println("✅ WebSocket hub initialized")
 }
 
+// GetHub returns the global hub instance
+func GetHub() *Hub {
+	return hub
+}
+
 // HandleWebSocket handles WebSocket connections
 func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Get user from session
@@ -436,6 +469,10 @@ func (c *Client) handleMessage(message []byte) {
 		c.handleTypingIndicator(wsMessage.Data)
 	case "ping":
 		c.handlePing()
+	case "private_message":
+		c.handlePrivateMessage(wsMessage.Data)
+	case "message_read":
+		c.handleMessageRead(wsMessage.Data)
 	default:
 		log.Printf("Unknown WebSocket message type: %s", wsMessage.Type)
 	}
@@ -468,6 +505,59 @@ func (c *Client) handlePing() {
 	}
 }
 
+// handlePrivateMessage handles private message sending
+func (c *Client) handlePrivateMessage(data interface{}) {
+	// Parse the message data
+	messageData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid private message data format from user %s", c.UserID)
+		return
+	}
+
+	receiverID, ok := messageData["receiverId"].(string)
+	if !ok || receiverID == "" {
+		log.Printf("Invalid receiver ID in private message from user %s", c.UserID)
+		return
+	}
+
+	content, ok := messageData["content"].(string)
+	if !ok || content == "" {
+		log.Printf("Invalid content in private message from user %s", c.UserID)
+		return
+	}
+
+	// Create and send the message through the messaging system
+	// This will be handled by the messaging handlers
+	log.Printf("Private message from %s to %s: %s", c.UserID, receiverID, content)
+}
+
+// handleMessageRead handles message read notifications
+func (c *Client) handleMessageRead(data interface{}) {
+	// Parse the message read data
+	readData, ok := data.(map[string]interface{})
+	if !ok {
+		log.Printf("Invalid message read data format from user %s", c.UserID)
+		return
+	}
+
+	senderID, ok := readData["senderId"].(string)
+	if !ok || senderID == "" {
+		log.Printf("Invalid sender ID in message read from user %s", c.UserID)
+		return
+	}
+
+	// Broadcast read notification to the sender
+	c.Hub.BroadcastToUser(senderID, models.WebSocketMessage{
+		Type: "message_read",
+		Data: map[string]interface{}{
+			"readerId": c.UserID,
+		},
+		Timestamp: time.Now(),
+	})
+
+	log.Printf("Message read notification from %s for messages from %s", c.UserID, senderID)
+}
+
 // BroadcastNewPost broadcasts a new post to all connected clients
 func BroadcastNewPost(post *models.Post) {
 	if hub == nil {
@@ -487,4 +577,20 @@ func BroadcastNewPost(post *models.Post) {
 	}
 
 	hub.BroadcastMessage(data)
+}
+
+// BroadcastNewMessage broadcasts a new private message to the receiver
+func BroadcastNewMessage(message *models.Message) {
+	if hub == nil {
+		return
+	}
+
+	wsMessage := models.WebSocketMessage{
+		Type:      "new_message",
+		Data:      message,
+		Timestamp: time.Now(),
+	}
+
+	hub.BroadcastToUser(message.ReceiverID, wsMessage)
+	log.Printf("Broadcasted new message from %s to %s", message.SenderID, message.ReceiverID)
 }

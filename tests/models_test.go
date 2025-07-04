@@ -236,14 +236,14 @@ func TestRequestValidation(t *testing.T) {
 func TestCommunicationModels(t *testing.T) {
 	t.Run("Conversation JSON Serialization", func(t *testing.T) {
 		conversation := &models.Conversation{
-			UserID:          "user-id",
-			Nickname:        "testuser",
-			FirstName:       "Test",
-			LastName:        "User",
-			LastMessage:     "Hello there!",
-			LastMessageTime: time.Now(),
-			UnreadCount:     3,
-			IsOnline:        true,
+			ID:                "conv-id",
+			User1ID:           "user1-id",
+			User2ID:           "user2-id",
+			LastMessageTime:   time.Now(),
+			OtherUserNickname: "testuser",
+			LastMessage:       "Hello there!",
+			UnreadCount:       3,
+			IsOnline:          true,
 		}
 
 		jsonData, err := json.Marshal(conversation)
