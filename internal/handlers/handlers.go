@@ -156,22 +156,41 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("🔒 Logout attempt started")
+
 	// Get session from request
 	session, err := auth.GetSessionFromRequest(r)
-	if err != nil || session == nil {
-		RenderError(w, "No active session", http.StatusBadRequest)
+	if err != nil {
+		log.Printf("❌ Logout error - Failed to get session from request: %v", err)
+		// Still clear the cookie even if session retrieval fails
+		auth.ClearSessionCookie(w)
+		RenderSuccess(w, "Logout successful", nil)
 		return
 	}
 
-	// Delete session
+	if session == nil {
+		log.Printf("⚠️ Logout warning - No active session found, clearing cookie anyway")
+		// Still clear the cookie even if no session exists
+		auth.ClearSessionCookie(w)
+		RenderSuccess(w, "Logout successful", nil)
+		return
+	}
+
+	log.Printf("🔒 Deleting session: %s", session.ID)
+
+	// Delete session from database
 	if err := auth.DeleteSession(session.ID); err != nil {
-		RenderError(w, "Failed to logout", http.StatusInternalServerError)
+		log.Printf("❌ Logout error - Failed to delete session: %v", err)
+		// Still clear the cookie even if database deletion fails
+		auth.ClearSessionCookie(w)
+		RenderError(w, "Failed to logout completely, but session cleared", http.StatusInternalServerError)
 		return
 	}
 
 	// Clear session cookie
 	auth.ClearSessionCookie(w)
 
+	log.Printf("✅ Logout successful for session: %s", session.ID)
 	RenderSuccess(w, "Logout successful", nil)
 }
 
