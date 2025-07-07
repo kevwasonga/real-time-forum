@@ -99,7 +99,7 @@ frontend/static/
 
 ### 1. Clone and Setup
 ```bash
-git clone <repository-url>
+https://github.com/kevwasonga/real-time-forum
 cd forum
 ```
 
