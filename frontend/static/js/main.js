@@ -408,19 +408,18 @@ window.forumApp = {
             console.log('🔒 Showing unauthenticated UI - header and navbar hidden');
         }
 
-        // Set up logout handler
-        const logoutBtn = document.getElementById('logout-btn');
-        if (logoutBtn) {
-            logoutBtn.onclick = () => this.logout();
-        }
+        // Note: Logout handler is managed by HeaderComponent to avoid duplicate handlers
     },
 
     /**
      * Handle user logout
      */
     async logout() {
+        console.log('🔒 Main: logout() called');
         try {
             await window.auth.logout();
+            console.log('🔒 Main: auth.logout() completed');
+
             this.currentUser = null;
             this.isAuthenticated = false;
 
@@ -439,10 +438,10 @@ window.forumApp = {
                 this.router.navigate('/login');
             }
 
-            console.log('🔒 User logged out and redirected to login');
+            console.log('🔒 Main: User logged out and redirected to login');
 
         } catch (error) {
-            console.error('Logout error:', error);
+            console.error('🔒 Main: Logout error:', error);
             if (this.notificationComponent) {
                 this.notificationComponent.error('Failed to logout');
             }

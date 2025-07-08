@@ -101,14 +101,18 @@ window.auth = {
             this.currentUser = null;
             this.isAuthenticated = false;
 
-            // Disconnect WebSocket
+            // Close WebSocket
             if (window.forumApp && window.forumApp.websocket) {
-                window.forumApp.websocket.disconnect();
+                console.log('🔒 Auth: Closing WebSocket');
+                window.forumApp.websocket.close();
+                console.log('🔒 Auth: WebSocket closed successfully');
             }
 
             // Show success notification
             if (window.forumApp && window.forumApp.notificationComponent) {
+                console.log('🔒 Auth: Showing success notification');
                 window.forumApp.notificationComponent.info('You have been logged out.');
+                console.log('🔒 Auth: Success notification completed');
             }
 
             // Redirect to home page
@@ -124,9 +128,9 @@ window.auth = {
             this.currentUser = null;
             this.isAuthenticated = false;
 
-            // Disconnect WebSocket anyway
+            // Close WebSocket anyway
             if (window.forumApp && window.forumApp.websocket) {
-                window.forumApp.websocket.disconnect();
+                window.forumApp.websocket.close();
             }
 
             // Show warning notification

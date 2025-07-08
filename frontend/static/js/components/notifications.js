@@ -56,7 +56,7 @@ window.NotificationComponent = {
                     <div class="notification-message">${window.utils.escapeHtml(notification.message)}</div>
                     ${notification.title ? `<div class="notification-title">${window.utils.escapeHtml(notification.title)}</div>` : ''}
                 </div>
-                <button class="notification-close" onclick="window.NotificationComponent.remove(${notification.id})">
+                <button class="notification-close" onclick="window.forumApp.notificationComponent.remove(${notification.id})">
                     ×
                 </button>
             </div>
