@@ -311,12 +311,27 @@ window.forumApp = {
         switch (message.type) {
             case 'user_status':
                 this.handleUserStatusUpdate(message.data);
+                // Also forward to messages page for online user updates
+                if (window.messagesPage && window.messagesPage.handleWebSocketMessage) {
+                    window.messagesPage.handleWebSocketMessage(message);
+                }
                 break;
             case 'new_post':
                 this.handleNewPost(message.data);
                 break;
             case 'notification':
                 this.handleNotification(message.data);
+                break;
+            case 'new_message':
+            case 'message_read':
+                // Forward messaging-related messages to the messages page if it exists
+                console.log('📨 Main App: Forwarding message to messages page:', message.type);
+                if (window.messagesPage && window.messagesPage.handleWebSocketMessage) {
+                    console.log('📨 Main App: Messages page exists, forwarding...');
+                    window.messagesPage.handleWebSocketMessage(message);
+                } else {
+                    console.log('📨 Main App: Messages page not available for forwarding');
+                }
                 break;
             default:
                 console.log('🔍 Unknown WebSocket message type:', message.type);

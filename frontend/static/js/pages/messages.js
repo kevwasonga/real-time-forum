@@ -3,94 +3,101 @@ class MessagesPage {
         this.currentUser = null;
         this.conversations = [];
         this.onlineUsers = [];
-        this.websocket = null;
         this.currentChatUser = null;
         this.currentChatWindow = null;
         this.messageSound = null;
-        this.init();
+        this.initialized = false;
     }
 
     async init() {
-        console.log('🔄 Initializing Messages Page...');
-        
-        // Get current user
-        try {
-            const response = await fetch('/api/user');
-            const data = await response.json();
-            if (data.success) {
-                this.currentUser = data.data;
-                console.log('✅ Current user loaded:', this.currentUser.nickname);
-            } else {
-                console.error('❌ Failed to get current user');
-                return;
-            }
-        } catch (error) {
-            console.error('❌ Error getting current user:', error);
+        if (this.initialized) {
+            console.log('🔄 Messages Page already initialized, refreshing data...');
+            await this.refreshData();
             return;
         }
 
-        // Initialize WebSocket connection
-        this.initWebSocket();
-        
+        console.log('🔄 Initializing Messages Page...');
+
+        // Get current user from main app instead of making another API call
+        if (window.forumApp && window.forumApp.currentUser) {
+            this.currentUser = window.forumApp.currentUser;
+            console.log('✅ Current user loaded from main app:', this.currentUser.nickname);
+        } else {
+            // Fallback to API call if main app user not available
+            try {
+                const response = await fetch('/api/user');
+                const data = await response.json();
+                if (data.success) {
+                    this.currentUser = data.data;
+                    console.log('✅ Current user loaded from API:', this.currentUser.nickname);
+                } else {
+                    console.error('❌ Failed to get current user');
+                    return;
+                }
+            } catch (error) {
+                console.error('❌ Error getting current user:', error);
+                return;
+            }
+        }
+
         // Load initial data
         await this.loadConversations();
         await this.loadOnlineUsers();
-        
+
         // Setup event listeners
         this.setupEventListeners();
-        
+
         // Initialize notification sound
         this.initNotificationSound();
-        
+
+        this.initialized = true;
         console.log('✅ Messages Page initialized');
     }
 
-    initWebSocket() {
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
-        
-        console.log('🔌 Connecting to WebSocket:', wsUrl);
-        
-        this.websocket = new WebSocket(wsUrl);
-        
-        this.websocket.onopen = () => {
-            console.log('✅ WebSocket connected');
-        };
-        
-        this.websocket.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data);
-                this.handleWebSocketMessage(message);
-            } catch (error) {
-                console.error('❌ Error parsing WebSocket message:', error);
-            }
-        };
-        
-        this.websocket.onclose = () => {
-            console.log('🔌 WebSocket disconnected, attempting to reconnect...');
-            setTimeout(() => this.initWebSocket(), 3000);
-        };
-        
-        this.websocket.onerror = (error) => {
-            console.error('❌ WebSocket error:', error);
-        };
+    async refreshData() {
+        console.log('🔄 Refreshing messages page data...');
+        await this.loadConversations();
+        await this.loadOnlineUsers();
+    }
+
+    cleanup() {
+        console.log('🧹 Cleaning up Messages Page...');
+
+        // Close any open chat windows
+        if (this.currentChatWindow) {
+            this.currentChatWindow.remove();
+            this.currentChatWindow = null;
+        }
+
+        // Reset current chat user
+        this.currentChatUser = null;
+
+        // Note: We don't clean up the WebSocket since we're using the main app's WebSocket
+    }
+
+    // Use main app's WebSocket instead of creating a new one
+    getWebSocket() {
+        return window.forumApp?.websocket;
     }
 
     handleWebSocketMessage(message) {
-        console.log('📨 WebSocket message received:', message);
-        
+        console.log('📨 Messages Page: WebSocket message received:', message);
+
         switch (message.type) {
             case 'new_message':
+                console.log('📩 Messages Page: Handling new message');
                 this.handleNewMessage(message.data);
                 break;
             case 'message_read':
+                console.log('📖 Messages Page: Handling message read');
                 this.handleMessageRead(message.data);
                 break;
             case 'user_status':
+                console.log('👤 Messages Page: Handling user status');
                 this.handleUserStatus(message.data);
                 break;
             default:
-                console.log('Unknown WebSocket message type:', message.type);
+                console.log('❓ Messages Page: Unknown WebSocket message type:', message.type);
         }
     }
 
@@ -126,35 +133,47 @@ class MessagesPage {
 
     async loadConversations() {
         try {
+            console.log('🔄 Loading conversations...');
             const response = await fetch('/api/conversations');
+            console.log('📡 Conversations response status:', response.status);
+
             const data = await response.json();
-            
+            console.log('📡 Conversations response data:', data);
+
             if (data.success) {
                 this.conversations = data.data || [];
                 this.renderConversations();
                 console.log('✅ Conversations loaded:', this.conversations.length);
             } else {
                 console.error('❌ Failed to load conversations:', data.error);
+                this.renderConversationsError(data.error || 'Failed to load conversations');
             }
         } catch (error) {
             console.error('❌ Error loading conversations:', error);
+            this.renderConversationsError('Network error loading conversations');
         }
     }
 
     async loadOnlineUsers() {
         try {
+            console.log('🔄 Loading online users...');
             const response = await fetch('/api/online-users');
+            console.log('📡 Online users response status:', response.status);
+
             const data = await response.json();
-            
+            console.log('📡 Online users response data:', data);
+
             if (data.success) {
                 this.onlineUsers = data.data || [];
                 this.renderOnlineUsers();
                 console.log('✅ Online users loaded:', this.onlineUsers.length);
             } else {
                 console.error('❌ Failed to load online users:', data.error);
+                this.renderOnlineUsersError(data.error || 'Failed to load online users');
             }
         } catch (error) {
             console.error('❌ Error loading online users:', error);
+            this.renderOnlineUsersError('Network error loading online users');
         }
     }
 
@@ -172,7 +191,7 @@ class MessagesPage {
         }
 
         container.innerHTML = this.conversations.map(conv => `
-            <div class="conversation-item" onclick="messagesPage.openChat('${conv.otherUserId}', '${conv.otherUserNickname}')">
+            <div class="conversation-item" onclick="window.messagesPage.openChat('${conv.otherUserId}', '${conv.otherUserNickname}')">
                 <div class="conversation-avatar">
                     ${conv.otherUserAvatar ?
                         `<img src="${conv.otherUserAvatar}" alt="${conv.otherUserNickname}">` :
@@ -206,7 +225,7 @@ class MessagesPage {
         }
 
         container.innerHTML = filteredUsers.map(user => `
-            <div class="online-user-item" onclick="messagesPage.openChat('${user.userId}', '${user.nickname}')">
+            <div class="online-user-item" onclick="window.messagesPage.openChat('${user.userId}', '${user.nickname}')">
                 <div class="user-avatar">
                     ${user.avatarUrl ? 
                         `<img src="${user.avatarUrl}" alt="${user.nickname}">` :
@@ -220,6 +239,30 @@ class MessagesPage {
                 </div>
             </div>
         `).join('');
+    }
+
+    renderConversationsError(errorMessage) {
+        const container = document.getElementById('conversationsContainer');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="error-message">
+                <p>❌ ${errorMessage}</p>
+                <button onclick="window.messagesPage.loadConversations()" class="retry-btn">Retry</button>
+            </div>
+        `;
+    }
+
+    renderOnlineUsersError(errorMessage) {
+        const container = document.getElementById('onlineUsersContainer');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="error-message">
+                <p>❌ ${errorMessage}</p>
+                <button onclick="window.messagesPage.loadOnlineUsers()" class="retry-btn">Retry</button>
+            </div>
+        `;
     }
 
     async openChat(userId, nickname) {
@@ -258,13 +301,13 @@ class MessagesPage {
                     <span class="chat-user-name">${nickname}</span>
                     <span class="chat-user-status" id="chatUserStatus-${userId}">Online</span>
                 </div>
-                <button class="chat-close-btn" onclick="messagesPage.closeChat()">×</button>
+                <button class="chat-close-btn" onclick="window.messagesPage.closeChat()">×</button>
             </div>
             <div class="chat-messages" id="chatMessages-${userId}"></div>
             <div class="chat-input-container">
                 <input type="text" class="message-input" placeholder="Type a message..." 
-                       onkeypress="messagesPage.handleMessageKeyPress(event, '${userId}')">
-                <button class="send-btn" onclick="messagesPage.sendMessage('${userId}')">Send</button>
+                       onkeypress="window.messagesPage.handleMessageKeyPress(event, '${userId}')">
+                <button class="send-btn" onclick="window.messagesPage.sendMessage('${userId}')">Send</button>
             </div>
         `;
         
@@ -686,7 +729,7 @@ window.initMessagesPage = initMessagesPage;
 
 // Export MessagesPage class for router
 window.MessagesPage = {
-    render: function() {
+    render: async function() {
         const container = document.getElementById('main-content');
         if (!container) return;
 
@@ -697,8 +740,8 @@ window.MessagesPage = {
                         <h2>Messages</h2>
                     </div>
                     <div class="sidebar-tabs">
-                        <button class="sidebar-tab active" onclick="messagesPage.showTab('conversations', this)">Conversations</button>
-                        <button class="sidebar-tab" onclick="messagesPage.showTab('online', this)">Online Users</button>
+                        <button class="sidebar-tab active" onclick="window.messagesPage.showTab('conversations', this)">Conversations</button>
+                        <button class="sidebar-tab" onclick="window.messagesPage.showTab('online', this)">Online Users</button>
                     </div>
                     <div class="sidebar-content">
                         <div id="conversationsContainer" class="tab-content active">
@@ -719,8 +762,11 @@ window.MessagesPage = {
         `;
 
         // Initialize the messages page
-        if (!messagesPage) {
-            messagesPage = new MessagesPage();
+        if (!window.messagesPage) {
+            window.messagesPage = new MessagesPage();
         }
+
+        // Always call init to handle re-entry
+        await window.messagesPage.init();
     }
 };
