@@ -594,3 +594,12 @@ func BroadcastNewMessage(message *models.Message) {
 	hub.BroadcastToUser(message.ReceiverID, wsMessage)
 	log.Printf("Broadcasted new message from %s to %s", message.SenderID, message.ReceiverID)
 }
+
+// BroadcastUserOffline broadcasts that a user has gone offline
+func BroadcastUserOffline(userID string) {
+	if hub == nil {
+		return
+	}
+
+	hub.broadcastUserStatus(userID, "offline")
+}

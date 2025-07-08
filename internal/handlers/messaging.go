@@ -80,12 +80,16 @@ func MessagesHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	log.Printf("📥 Fetching messages: user=%s, otherUser=%s, limit=%d, offset=%d", user.ID, otherUserID, limit, offset)
+
 	messages, err := getConversationMessages(user.ID, otherUserID, limit, offset)
 	if err != nil {
 		log.Printf("Error fetching messages between %s and %s: %v", user.ID, otherUserID, err)
 		RenderError(w, "Failed to fetch messages", http.StatusInternalServerError)
 		return
 	}
+
+	log.Printf("📤 Returning %d messages for conversation", len(messages))
 
 	// Mark messages as read
 	err = markMessagesAsRead(user.ID, otherUserID)

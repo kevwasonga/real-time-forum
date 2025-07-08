@@ -7,6 +7,10 @@ class MessagesPage {
         this.currentChatWindow = null;
         this.messageSound = null;
         this.initialized = false;
+
+        // Pagination tracking for each chat
+        this.chatPagination = new Map(); // userId -> { offset, hasMore, loading }
+        this.scrollThrottleTimeout = null;
     }
 
     async init() {
@@ -63,8 +67,13 @@ class MessagesPage {
     cleanup() {
         console.log('🧹 Cleaning up Messages Page...');
 
-        // Close any open chat windows
+        // Close any open chat windows and remove scroll listeners
         if (this.currentChatWindow) {
+            const container = this.currentChatWindow.querySelector('[id^="chatMessages-"]');
+            if (container && container.scrollHandler) {
+                container.removeEventListener('scroll', container.scrollHandler);
+                container.scrollHandler = null;
+            }
             this.currentChatWindow.remove();
             this.currentChatWindow = null;
         }
@@ -72,12 +81,31 @@ class MessagesPage {
         // Reset current chat user
         this.currentChatUser = null;
 
+        // Clear pagination data
+        this.chatPagination.clear();
+
+        // Clear throttle timeout
+        if (this.scrollThrottleTimeout) {
+            clearTimeout(this.scrollThrottleTimeout);
+            this.scrollThrottleTimeout = null;
+        }
+
         // Note: We don't clean up the WebSocket since we're using the main app's WebSocket
     }
 
     // Use main app's WebSocket instead of creating a new one
     getWebSocket() {
         return window.forumApp?.websocket;
+    }
+
+    // Throttle function to prevent scroll event spam
+    throttle(func, delay) {
+        return (...args) => {
+            if (this.scrollThrottleTimeout) {
+                clearTimeout(this.scrollThrottleTimeout);
+            }
+            this.scrollThrottleTimeout = setTimeout(() => func.apply(this, args), delay);
+        };
     }
 
     handleWebSocketMessage(message) {
@@ -279,7 +307,8 @@ class MessagesPage {
         this.currentChatWindow = this.createChatWindow(userId, nickname);
         document.body.appendChild(this.currentChatWindow);
         
-        // Load messages
+        // Load messages (initial load - should show only last 10)
+        console.log(`🔄 Opening chat with ${userId}, loading initial messages...`);
         await this.loadChatMessages(userId);
         
         // Focus on input
@@ -314,26 +343,70 @@ class MessagesPage {
         return chatWindow;
     }
 
-    async loadChatMessages(userId) {
+    async loadChatMessages(userId, isLoadMore = false) {
         try {
-            const response = await fetch(`/api/messages?user=${userId}&limit=50`);
+            // Initialize pagination for this user if not exists
+            if (!this.chatPagination.has(userId)) {
+                this.chatPagination.set(userId, { offset: 0, hasMore: true, loading: false });
+            }
+
+            const pagination = this.chatPagination.get(userId);
+
+            // Prevent multiple simultaneous requests
+            if (pagination.loading) {
+                return;
+            }
+
+            // If no more messages available, return
+            if (isLoadMore && !pagination.hasMore) {
+                return;
+            }
+
+            pagination.loading = true;
+
+            const limit = 10; // Load 10 messages at a time
+            const offset = isLoadMore ? pagination.offset : 0;
+
+            console.log(`📥 Loading messages for ${userId}: limit=${limit}, offset=${offset}, isLoadMore=${isLoadMore}`);
+
+            const response = await fetch(`/api/messages?user=${userId}&limit=${limit}&offset=${offset}`);
             const data = await response.json();
-            
+
             if (data.success) {
                 const messages = data.data || [];
-                this.displayMessages(messages, userId);
-                console.log(`✅ Loaded ${messages.length} messages for user ${userId}`);
+
+                // Update pagination
+                pagination.offset = isLoadMore ? pagination.offset + messages.length : messages.length;
+                pagination.hasMore = messages.length === limit; // If we got fewer than limit, no more messages
+                pagination.loading = false;
+
+                if (isLoadMore) {
+                    this.prependMessages(messages, userId);
+                } else {
+                    this.displayMessages(messages, userId);
+                }
+
+                console.log(`✅ Loaded ${messages.length} messages for user ${userId} (total offset: ${pagination.offset})`);
             } else {
                 console.error('❌ Failed to load messages:', data.error);
+                pagination.loading = false;
             }
         } catch (error) {
             console.error('❌ Error loading messages:', error);
+            if (this.chatPagination.has(userId)) {
+                this.chatPagination.get(userId).loading = false;
+            }
         }
     }
 
     displayMessages(messages, userId) {
         const container = document.getElementById(`chatMessages-${userId}`);
         if (!container) return;
+
+        console.log(`📄 Displaying ${messages.length} messages for user ${userId}`);
+
+        // API already returns messages in chronological order (oldest first)
+        // No need to reverse - just display them as-is
 
         let html = '';
         let lastDate = null;
@@ -359,6 +432,8 @@ class MessagesPage {
             const messageElement = tempDiv.querySelector('.message');
             if (messageElement) {
                 messageElement.dataset.senderId = msg.senderId;
+                messageElement.dataset.messageId = msg.id;
+                messageElement.dataset.createdAt = msg.createdAt;
             }
             html += tempDiv.innerHTML;
 
@@ -368,8 +443,107 @@ class MessagesPage {
 
         container.innerHTML = html;
 
-        // Scroll to bottom
+        // Add scroll event listener for pagination
+        this.addScrollListener(container, userId);
+
+        // Scroll to bottom to show most recent messages
         container.scrollTop = container.scrollHeight;
+    }
+
+    prependMessages(messages, userId) {
+        const container = document.getElementById(`chatMessages-${userId}`);
+        if (!container) return;
+
+        if (messages.length === 0) return;
+
+        // Store current scroll position
+        const scrollHeight = container.scrollHeight;
+        const scrollTop = container.scrollTop;
+
+        // API already returns messages in chronological order (oldest first)
+        // No need to reverse - just display them as-is
+
+        // Get the first existing message to check for date separator needs
+        const firstExistingMessage = container.querySelector('.message');
+        let needsDateSeparatorAfter = false;
+
+        if (firstExistingMessage && messages.length > 0) {
+            const firstExistingDate = new Date(firstExistingMessage.dataset.createdAt).toDateString();
+            const lastNewMessageDate = new Date(messages[messages.length - 1].createdAt).toDateString();
+            needsDateSeparatorAfter = firstExistingDate !== lastNewMessageDate;
+        }
+
+        let html = '';
+        let lastDate = null;
+        let lastSender = null;
+
+        messages.forEach((msg, index) => {
+            const msgDate = new Date(msg.createdAt).toDateString();
+
+            // Add date separator if date changed
+            if (lastDate && lastDate !== msgDate) {
+                html += this.createDateSeparator(msgDate);
+            } else if (!lastDate) {
+                html += this.createDateSeparator(msgDate);
+            }
+
+            // Check if this is a consecutive message from same sender
+            const isSameSender = lastSender === msg.senderId;
+            const messageHTML = this.createMessageHTML(msg, isSameSender);
+
+            // Add message data attributes
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = messageHTML;
+            const messageElement = tempDiv.querySelector('.message');
+            if (messageElement) {
+                messageElement.dataset.senderId = msg.senderId;
+                messageElement.dataset.messageId = msg.id;
+                messageElement.dataset.createdAt = msg.createdAt;
+            }
+            html += tempDiv.innerHTML;
+
+            lastDate = msgDate;
+            lastSender = msg.senderId;
+        });
+
+        // Add date separator between old and new messages if needed
+        if (needsDateSeparatorAfter && firstExistingMessage) {
+            const firstExistingDate = new Date(firstExistingMessage.dataset.createdAt).toDateString();
+            html += this.createDateSeparator(firstExistingDate);
+        }
+
+        // Prepend the older messages
+        container.insertAdjacentHTML('afterbegin', html);
+
+        // Restore scroll position (maintain relative position)
+        const newScrollHeight = container.scrollHeight;
+        container.scrollTop = scrollTop + (newScrollHeight - scrollHeight);
+    }
+
+    addScrollListener(container, userId) {
+        // Remove existing listener if any
+        if (container.scrollHandler) {
+            container.removeEventListener('scroll', container.scrollHandler);
+        }
+
+        // Create throttled scroll handler
+        const scrollHandler = this.throttle((event) => {
+            const container = event.target;
+            const scrollTop = container.scrollTop;
+            const scrollThreshold = 100; // Load more when within 100px of top
+
+            // Check if scrolled near the top
+            if (scrollTop <= scrollThreshold) {
+                console.log(`📜 Scroll threshold reached for user ${userId}, loading more messages...`);
+                this.loadChatMessages(userId, true); // Load more messages
+            }
+        }, 300); // Throttle to 300ms
+
+        // Store reference for cleanup
+        container.scrollHandler = scrollHandler;
+
+        // Add event listener
+        container.addEventListener('scroll', scrollHandler);
     }
 
     createMessageHTML(message, isSameSender = false) {
@@ -418,6 +592,12 @@ class MessagesPage {
         const container = document.getElementById(`chatMessages-${this.currentChatUser}`);
         if (!container) return;
 
+        // Update pagination offset to account for new message
+        if (this.chatPagination.has(this.currentChatUser)) {
+            const pagination = this.chatPagination.get(this.currentChatUser);
+            pagination.offset += 1;
+        }
+
         // Check if we need a date separator
         const lastMessage = container.querySelector('.message:last-child');
         let needsDateSeparator = false;
@@ -442,12 +622,14 @@ class MessagesPage {
 
         html += this.createMessageHTML(message, isSameSender);
 
-        // Add sender ID as data attribute for future reference
+        // Add message data attributes
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
         const messageElement = tempDiv.querySelector('.message');
         if (messageElement) {
             messageElement.dataset.senderId = message.senderId;
+            messageElement.dataset.messageId = message.id;
+            messageElement.dataset.createdAt = message.createdAt;
         }
 
         container.insertAdjacentHTML('beforeend', tempDiv.innerHTML);
@@ -521,6 +703,18 @@ class MessagesPage {
 
     closeChat() {
         if (this.currentChatWindow) {
+            // Clean up scroll listener
+            const container = this.currentChatWindow.querySelector('[id^="chatMessages-"]');
+            if (container && container.scrollHandler) {
+                container.removeEventListener('scroll', container.scrollHandler);
+                container.scrollHandler = null;
+            }
+
+            // Reset pagination for this user
+            if (this.currentChatUser) {
+                this.chatPagination.delete(this.currentChatUser);
+            }
+
             this.currentChatWindow.remove();
             this.currentChatWindow = null;
             this.currentChatUser = null;
