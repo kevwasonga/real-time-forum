@@ -14,18 +14,18 @@ import (
 )
 
 // Valid frontend routes for SPA
-var validFrontendRoutes = map[string]bool{
-	"/":         true,
-	"/login":    true,
-	"/register": true,
-	"/profile":  true,
-	"/post":     true,
-	"/posts":    true,
-	"/messages": true,
+// var validFrontendRoutes = map[string]bool{
+// 	"/":         true,
+// 	"/login":    true,
+// 	"/register": true,
+// 	"/profile":  true,
+// 	"/post":     true,
+// 	"/posts":    true,
+// 	"/messages": true,
 
-	"/create-post": true,
-	"/settings":    true,
-}
+// 	"/create-post": true,
+// 	"/settings":    true,
+// }
 
 func main() {
 	// Initialize database

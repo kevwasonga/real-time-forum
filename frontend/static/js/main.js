@@ -32,10 +32,10 @@ window.forumApp = {
             // Initialize components
             this.initComponents();
 
-            // Skip general WebSocket - using dedicated messaging WebSocket instead
-            // if (this.isAuthenticated) {
-            //     this.initWebSocket();
-            // }
+            // Initialize WebSocket for real-time features (online users, notifications)
+            if (this.isAuthenticated) {
+                this.initWebSocket();
+            }
 
             // Update UI based on auth state
             this.updateAuthUI();
@@ -252,7 +252,129 @@ window.forumApp = {
         this.router.init();
     },
 
-    // WebSocket functionality removed - using dedicated messaging WebSocket only
+    /**
+     * Initialize WebSocket connection for real-time features
+     */
+    initWebSocket() {
+        if (!this.isAuthenticated) {
+            console.log('🔌 Skipping WebSocket initialization - user not authenticated');
+            return;
+        }
+
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+
+        console.log('🔌 Initializing main WebSocket connection:', wsUrl);
+
+        this.websocket = new WebSocket(wsUrl);
+
+        this.websocket.onopen = () => {
+            console.log('✅ Main WebSocket connected');
+            this.isWebSocketConnected = true;
+        };
+
+        this.websocket.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                this.handleWebSocketMessage(message);
+            } catch (error) {
+                console.error('❌ Error parsing WebSocket message:', error);
+            }
+        };
+
+        this.websocket.onclose = () => {
+            console.log('🔌 Main WebSocket disconnected');
+            this.isWebSocketConnected = false;
+
+            // Attempt to reconnect if user is still authenticated
+            if (this.isAuthenticated) {
+                console.log('🔄 Attempting to reconnect WebSocket in 3 seconds...');
+                setTimeout(() => {
+                    if (this.isAuthenticated) {
+                        this.initWebSocket();
+                    }
+                }, 3000);
+            }
+        };
+
+        this.websocket.onerror = (error) => {
+            console.error('❌ Main WebSocket error:', error);
+        };
+    },
+
+    /**
+     * Handle incoming WebSocket messages
+     */
+    handleWebSocketMessage(message) {
+        console.log('📨 Received WebSocket message:', message);
+
+        switch (message.type) {
+            case 'user_status':
+                this.handleUserStatusUpdate(message.data);
+                // Also forward to messages page for online user updates
+                if (window.messagesPage && window.messagesPage.handleWebSocketMessage) {
+                    window.messagesPage.handleWebSocketMessage(message);
+                }
+                break;
+            case 'new_post':
+                this.handleNewPost(message.data);
+                break;
+            case 'notification':
+                this.handleNotification(message.data);
+                break;
+            case 'new_message':
+            case 'message_read':
+                // Forward messaging-related messages to the messages page if it exists
+                console.log('📨 Main App: Forwarding message to messages page:', message.type);
+                if (window.messagesPage && window.messagesPage.handleWebSocketMessage) {
+                    console.log('📨 Main App: Messages page exists, forwarding...');
+                    window.messagesPage.handleWebSocketMessage(message);
+                } else {
+                    console.log('📨 Main App: Messages page not available for forwarding');
+                }
+                break;
+            default:
+                console.log('🔍 Unknown WebSocket message type:', message.type);
+        }
+    },
+
+    /**
+     * Handle user status updates (online/offline)
+     */
+    handleUserStatusUpdate(data) {
+        console.log('👥 User status update:', data);
+
+        // Notify sidebar component about user status change
+        if (window.SidebarComponent) {
+            window.SidebarComponent.updateUserStatus(data);
+        }
+
+        // Dispatch custom event for other components
+        window.dispatchEvent(new CustomEvent('user_status', { detail: data }));
+    },
+
+    /**
+     * Handle new post notifications
+     */
+    handleNewPost(data) {
+        console.log('📝 New post notification:', data);
+
+        // Show notification if not on posts page
+        if (this.router.currentRoute !== 'posts' && this.notificationComponent) {
+            this.notificationComponent.info(`New post: ${data.title}`);
+        }
+    },
+
+    /**
+     * Handle general notifications
+     */
+    handleNotification(data) {
+        console.log('🔔 Notification:', data);
+
+        if (this.notificationComponent) {
+            this.notificationComponent.info(data.message);
+        }
+    },
 
     /**
      * Update UI based on authentication state
@@ -301,23 +423,27 @@ window.forumApp = {
             console.log('🔒 Showing unauthenticated UI - header and navbar hidden');
         }
 
-        // Set up logout handler
-        const logoutBtn = document.getElementById('logout-btn');
-        if (logoutBtn) {
-            logoutBtn.onclick = () => this.logout();
-        }
+        // Note: Logout handler is managed by HeaderComponent to avoid duplicate handlers
     },
 
     /**
      * Handle user logout
      */
     async logout() {
+        console.log('🔒 Main: logout() called');
         try {
             await window.auth.logout();
+            console.log('🔒 Main: auth.logout() completed');
+
             this.currentUser = null;
             this.isAuthenticated = false;
 
-            // WebSocket cleanup removed - using dedicated messaging WebSocket only
+            // Close WebSocket connection
+            if (this.websocket) {
+                this.websocket.close();
+                this.websocket = null;
+                this.isWebSocketConnected = false;
+            }
 
             // Update UI
             this.updateAuthUI();
@@ -327,10 +453,10 @@ window.forumApp = {
                 this.router.navigate('/login');
             }
 
-            console.log('🔒 User logged out and redirected to login');
+            console.log('🔒 Main: User logged out and redirected to login');
 
         } catch (error) {
-            console.error('Logout error:', error);
+            console.error('🔒 Main: Logout error:', error);
             if (this.notificationComponent) {
                 this.notificationComponent.error('Failed to logout');
             }
@@ -344,8 +470,8 @@ window.forumApp = {
         this.currentUser = user;
         this.isAuthenticated = true;
 
-        // Skip general WebSocket - using dedicated messaging WebSocket instead
-        // this.initWebSocket();
+        // Initialize WebSocket for real-time features
+        this.initWebSocket();
 
         // Update UI
         this.updateAuthUI();

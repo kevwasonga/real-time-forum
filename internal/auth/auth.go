@@ -137,10 +137,22 @@ func ClearSessionCookie(w http.ResponseWriter) {
 func GetSessionFromRequest(r *http.Request) (*models.Session, error) {
 	cookie, err := r.Cookie(SessionCookieName)
 	if err != nil {
-		return nil, nil // No session cookie
+		if err == http.ErrNoCookie {
+			return nil, nil // No session cookie - this is normal
+		}
+		return nil, fmt.Errorf("failed to read session cookie: %v", err)
 	}
 
-	return GetSessionByID(cookie.Value)
+	if cookie.Value == "" {
+		return nil, nil // Empty session cookie
+	}
+
+	session, err := GetSessionByID(cookie.Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate session: %v", err)
+	}
+
+	return session, nil
 }
 
 // GetUserFromSession gets the user associated with the session in the request

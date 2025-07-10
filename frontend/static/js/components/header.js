@@ -47,12 +47,15 @@ window.HeaderComponent = {
     },
 
     async handleLogout() {
+        console.log('🔒 Header: handleLogout called');
         try {
             if (window.forumApp) {
+                console.log('🔒 Header: calling window.forumApp.logout()');
                 await window.forumApp.logout();
+                console.log('🔒 Header: logout completed successfully');
             }
         } catch (error) {
-            console.error('Logout error:', error);
+            console.error('🔒 Header: Logout error:', error);
         }
     },
 

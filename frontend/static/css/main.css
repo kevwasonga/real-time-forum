@@ -3868,6 +3868,82 @@ body {
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
+/* Profile Picture Upload Styles */
+.profile-edit-modal {
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.profile-picture-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: var(--surface-color);
+    border-radius: 12px;
+    border: 2px dashed var(--border-color);
+}
+
+.profile-picture-upload {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.current-avatar {
+    position: relative;
+}
+
+.avatar-preview {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid var(--primary-color);
+    transition: transform 0.3s ease;
+}
+
+.avatar-preview:hover {
+    transform: scale(1.05);
+}
+
+.upload-controls {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.upload-avatar-btn,
+.remove-avatar-btn {
+    padding: 10px 20px;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+}
+
+.upload-avatar-btn {
+    background: var(--primary-color);
+    color: white;
+}
+
+.upload-avatar-btn:hover {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
+}
+
+.remove-avatar-btn {
+    background: var(--danger-color);
+    color: white;
+}
+
+.remove-avatar-btn:hover {
+    background: var(--danger-dark);
+    transform: translateY(-2px);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .profile-content {
@@ -3877,6 +3953,15 @@ body {
     .profile-avatar-section {
         flex-direction: column;
         text-align: center;
+    }
+
+    .profile-picture-upload {
+        padding: 15px;
+    }
+
+    .upload-controls {
+        flex-direction: column;
+        align-items: center;
     }
 
     .messages-container {

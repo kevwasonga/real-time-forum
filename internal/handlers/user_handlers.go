@@ -130,7 +130,7 @@ func getOnlineUsers() ([]models.OnlineUser, error) {
 		SELECT ou.user_id, u.nickname, u.first_name, u.last_name, u.avatar_url, MAX(ou.last_seen) as last_seen
 		FROM online_users ou
 		JOIN users u ON ou.user_id = u.id
-		WHERE ou.last_seen > datetime('now', '-5 minutes')
+		WHERE ou.last_seen > datetime('now', '-10 minutes')
 		GROUP BY ou.user_id, u.nickname, u.first_name, u.last_name, u.avatar_url
 		ORDER BY u.nickname ASC
 	`)

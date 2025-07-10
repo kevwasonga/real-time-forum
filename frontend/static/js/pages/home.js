@@ -33,11 +33,7 @@ window.HomePage = {
                             <a href="/messages" data-route="/messages" class="btn btn-secondary">Open Messages</a>
                         </div>
                         
-                        <div class="action-card">
-                            <h3>👥 Friends</h3>
-                            <p>Manage your friend connections</p>
-                            <a href="/friends" data-route="/friends" class="btn btn-secondary">View Friends</a>
-                        </div>
+                       
                     </div>
                     
                     <div class="recent-activity">

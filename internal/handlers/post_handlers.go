@@ -152,12 +152,15 @@ func handleCreateComment(w http.ResponseWriter, r *http.Request) {
 func handleUpdateComment(w http.ResponseWriter, r *http.Request) {
 	log.Printf("🔄 handleUpdateComment - URL: %s", r.URL.Path)
 
+	// Get user from session with better error handling
 	user := auth.GetUserFromSession(r)
 	if user == nil {
-		log.Printf("❌ No user in session")
+		log.Printf("❌ No user in session for comment update")
 		RenderError(w, "Authentication required", http.StatusUnauthorized)
 		return
 	}
+
+	log.Printf("✅ User %s (%s) updating comment", user.Nickname, user.ID)
 
 	// Extract comment ID from URL path
 	path := strings.TrimPrefix(r.URL.Path, "/api/comment/")

@@ -3,94 +3,129 @@ class MessagesPage {
         this.currentUser = null;
         this.conversations = [];
         this.onlineUsers = [];
-        this.websocket = null;
         this.currentChatUser = null;
         this.currentChatWindow = null;
         this.messageSound = null;
-        this.init();
+        this.initialized = false;
+
+        // Pagination tracking for each chat
+        this.chatPagination = new Map(); // userId -> { offset, hasMore, loading }
+        this.scrollThrottleTimeout = null;
     }
 
     async init() {
-        console.log('🔄 Initializing Messages Page...');
-        
-        // Get current user
-        try {
-            const response = await fetch('/api/user');
-            const data = await response.json();
-            if (data.success) {
-                this.currentUser = data.data;
-                console.log('✅ Current user loaded:', this.currentUser.nickname);
-            } else {
-                console.error('❌ Failed to get current user');
-                return;
-            }
-        } catch (error) {
-            console.error('❌ Error getting current user:', error);
+        if (this.initialized) {
+            console.log('🔄 Messages Page already initialized, refreshing data...');
+            await this.refreshData();
             return;
         }
 
-        // Initialize WebSocket connection
-        this.initWebSocket();
-        
+        console.log('🔄 Initializing Messages Page...');
+
+        // Get current user from main app instead of making another API call
+        if (window.forumApp && window.forumApp.currentUser) {
+            this.currentUser = window.forumApp.currentUser;
+            console.log('✅ Current user loaded from main app:', this.currentUser.nickname);
+        } else {
+            // Fallback to API call if main app user not available
+            try {
+                const response = await fetch('/api/user');
+                const data = await response.json();
+                if (data.success) {
+                    this.currentUser = data.data;
+                    console.log('✅ Current user loaded from API:', this.currentUser.nickname);
+                } else {
+                    console.error('❌ Failed to get current user');
+                    return;
+                }
+            } catch (error) {
+                console.error('❌ Error getting current user:', error);
+                return;
+            }
+        }
+
         // Load initial data
         await this.loadConversations();
         await this.loadOnlineUsers();
-        
+
         // Setup event listeners
         this.setupEventListeners();
-        
+
         // Initialize notification sound
         this.initNotificationSound();
-        
+
+        this.initialized = true;
         console.log('✅ Messages Page initialized');
     }
 
-    initWebSocket() {
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
-        
-        console.log('🔌 Connecting to WebSocket:', wsUrl);
-        
-        this.websocket = new WebSocket(wsUrl);
-        
-        this.websocket.onopen = () => {
-            console.log('✅ WebSocket connected');
-        };
-        
-        this.websocket.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data);
-                this.handleWebSocketMessage(message);
-            } catch (error) {
-                console.error('❌ Error parsing WebSocket message:', error);
+    async refreshData() {
+        console.log('🔄 Refreshing messages page data...');
+        await this.loadConversations();
+        await this.loadOnlineUsers();
+    }
+
+    cleanup() {
+        console.log('🧹 Cleaning up Messages Page...');
+
+        // Close any open chat windows and remove scroll listeners
+        if (this.currentChatWindow) {
+            const container = this.currentChatWindow.querySelector('[id^="chatMessages-"]');
+            if (container && container.scrollHandler) {
+                container.removeEventListener('scroll', container.scrollHandler);
+                container.scrollHandler = null;
             }
-        };
-        
-        this.websocket.onclose = () => {
-            console.log('🔌 WebSocket disconnected, attempting to reconnect...');
-            setTimeout(() => this.initWebSocket(), 3000);
-        };
-        
-        this.websocket.onerror = (error) => {
-            console.error('❌ WebSocket error:', error);
+            this.currentChatWindow.remove();
+            this.currentChatWindow = null;
+        }
+
+        // Reset current chat user
+        this.currentChatUser = null;
+
+        // Clear pagination data
+        this.chatPagination.clear();
+
+        // Clear throttle timeout
+        if (this.scrollThrottleTimeout) {
+            clearTimeout(this.scrollThrottleTimeout);
+            this.scrollThrottleTimeout = null;
+        }
+
+        // Note: We don't clean up the WebSocket since we're using the main app's WebSocket
+    }
+
+    // Use main app's WebSocket instead of creating a new one
+    getWebSocket() {
+        return window.forumApp?.websocket;
+    }
+
+    // Throttle function to prevent scroll event spam
+    throttle(func, delay) {
+        return (...args) => {
+            if (this.scrollThrottleTimeout) {
+                clearTimeout(this.scrollThrottleTimeout);
+            }
+            this.scrollThrottleTimeout = setTimeout(() => func.apply(this, args), delay);
         };
     }
 
     handleWebSocketMessage(message) {
-        console.log('📨 WebSocket message received:', message);
-        
+        console.log('📨 Messages Page: WebSocket message received:', message);
+
         switch (message.type) {
             case 'new_message':
+                console.log('📩 Messages Page: Handling new message');
                 this.handleNewMessage(message.data);
                 break;
             case 'message_read':
+                console.log('📖 Messages Page: Handling message read');
                 this.handleMessageRead(message.data);
                 break;
             case 'user_status':
+                console.log('👤 Messages Page: Handling user status');
                 this.handleUserStatus(message.data);
                 break;
             default:
-                console.log('Unknown WebSocket message type:', message.type);
+                console.log('❓ Messages Page: Unknown WebSocket message type:', message.type);
         }
     }
 
@@ -126,35 +161,47 @@ class MessagesPage {
 
     async loadConversations() {
         try {
+            console.log('🔄 Loading conversations...');
             const response = await fetch('/api/conversations');
+            console.log('📡 Conversations response status:', response.status);
+
             const data = await response.json();
-            
+            console.log('📡 Conversations response data:', data);
+
             if (data.success) {
                 this.conversations = data.data || [];
                 this.renderConversations();
                 console.log('✅ Conversations loaded:', this.conversations.length);
             } else {
                 console.error('❌ Failed to load conversations:', data.error);
+                this.renderConversationsError(data.error || 'Failed to load conversations');
             }
         } catch (error) {
             console.error('❌ Error loading conversations:', error);
+            this.renderConversationsError('Network error loading conversations');
         }
     }
 
     async loadOnlineUsers() {
         try {
+            console.log('🔄 Loading online users...');
             const response = await fetch('/api/online-users');
+            console.log('📡 Online users response status:', response.status);
+
             const data = await response.json();
-            
+            console.log('📡 Online users response data:', data);
+
             if (data.success) {
                 this.onlineUsers = data.data || [];
                 this.renderOnlineUsers();
                 console.log('✅ Online users loaded:', this.onlineUsers.length);
             } else {
                 console.error('❌ Failed to load online users:', data.error);
+                this.renderOnlineUsersError(data.error || 'Failed to load online users');
             }
         } catch (error) {
             console.error('❌ Error loading online users:', error);
+            this.renderOnlineUsersError('Network error loading online users');
         }
     }
 
@@ -172,7 +219,7 @@ class MessagesPage {
         }
 
         container.innerHTML = this.conversations.map(conv => `
-            <div class="conversation-item" onclick="messagesPage.openChat('${conv.otherUserId}', '${conv.otherUserNickname}')">
+            <div class="conversation-item" onclick="window.messagesPage.openChat('${conv.otherUserId}', '${conv.otherUserNickname}')">
                 <div class="conversation-avatar">
                     ${conv.otherUserAvatar ?
                         `<img src="${conv.otherUserAvatar}" alt="${conv.otherUserNickname}">` :
@@ -206,7 +253,7 @@ class MessagesPage {
         }
 
         container.innerHTML = filteredUsers.map(user => `
-            <div class="online-user-item" onclick="messagesPage.openChat('${user.userId}', '${user.nickname}')">
+            <div class="online-user-item" onclick="window.messagesPage.openChat('${user.userId}', '${user.nickname}')">
                 <div class="user-avatar">
                     ${user.avatarUrl ? 
                         `<img src="${user.avatarUrl}" alt="${user.nickname}">` :
@@ -220,6 +267,30 @@ class MessagesPage {
                 </div>
             </div>
         `).join('');
+    }
+
+    renderConversationsError(errorMessage) {
+        const container = document.getElementById('conversationsContainer');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="error-message">
+                <p>❌ ${errorMessage}</p>
+                <button onclick="window.messagesPage.loadConversations()" class="retry-btn">Retry</button>
+            </div>
+        `;
+    }
+
+    renderOnlineUsersError(errorMessage) {
+        const container = document.getElementById('onlineUsersContainer');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="error-message">
+                <p>❌ ${errorMessage}</p>
+                <button onclick="window.messagesPage.loadOnlineUsers()" class="retry-btn">Retry</button>
+            </div>
+        `;
     }
 
     async openChat(userId, nickname) {
@@ -236,7 +307,8 @@ class MessagesPage {
         this.currentChatWindow = this.createChatWindow(userId, nickname);
         document.body.appendChild(this.currentChatWindow);
         
-        // Load messages
+        // Load messages (initial load - should show only last 10)
+        console.log(`🔄 Opening chat with ${userId}, loading initial messages...`);
         await this.loadChatMessages(userId);
         
         // Focus on input
@@ -258,39 +330,83 @@ class MessagesPage {
                     <span class="chat-user-name">${nickname}</span>
                     <span class="chat-user-status" id="chatUserStatus-${userId}">Online</span>
                 </div>
-                <button class="chat-close-btn" onclick="messagesPage.closeChat()">×</button>
+                <button class="chat-close-btn" onclick="window.messagesPage.closeChat()">×</button>
             </div>
             <div class="chat-messages" id="chatMessages-${userId}"></div>
             <div class="chat-input-container">
                 <input type="text" class="message-input" placeholder="Type a message..." 
-                       onkeypress="messagesPage.handleMessageKeyPress(event, '${userId}')">
-                <button class="send-btn" onclick="messagesPage.sendMessage('${userId}')">Send</button>
+                       onkeypress="window.messagesPage.handleMessageKeyPress(event, '${userId}')">
+                <button class="send-btn" onclick="window.messagesPage.sendMessage('${userId}')">Send</button>
             </div>
         `;
         
         return chatWindow;
     }
 
-    async loadChatMessages(userId) {
+    async loadChatMessages(userId, isLoadMore = false) {
         try {
-            const response = await fetch(`/api/messages?user=${userId}&limit=50`);
+            // Initialize pagination for this user if not exists
+            if (!this.chatPagination.has(userId)) {
+                this.chatPagination.set(userId, { offset: 0, hasMore: true, loading: false });
+            }
+
+            const pagination = this.chatPagination.get(userId);
+
+            // Prevent multiple simultaneous requests
+            if (pagination.loading) {
+                return;
+            }
+
+            // If no more messages available, return
+            if (isLoadMore && !pagination.hasMore) {
+                return;
+            }
+
+            pagination.loading = true;
+
+            const limit = 10; // Load 10 messages at a time
+            const offset = isLoadMore ? pagination.offset : 0;
+
+            console.log(`📥 Loading messages for ${userId}: limit=${limit}, offset=${offset}, isLoadMore=${isLoadMore}`);
+
+            const response = await fetch(`/api/messages?user=${userId}&limit=${limit}&offset=${offset}`);
             const data = await response.json();
-            
+
             if (data.success) {
                 const messages = data.data || [];
-                this.displayMessages(messages, userId);
-                console.log(`✅ Loaded ${messages.length} messages for user ${userId}`);
+
+                // Update pagination
+                pagination.offset = isLoadMore ? pagination.offset + messages.length : messages.length;
+                pagination.hasMore = messages.length === limit; // If we got fewer than limit, no more messages
+                pagination.loading = false;
+
+                if (isLoadMore) {
+                    this.prependMessages(messages, userId);
+                } else {
+                    this.displayMessages(messages, userId);
+                }
+
+                console.log(`✅ Loaded ${messages.length} messages for user ${userId} (total offset: ${pagination.offset})`);
             } else {
                 console.error('❌ Failed to load messages:', data.error);
+                pagination.loading = false;
             }
         } catch (error) {
             console.error('❌ Error loading messages:', error);
+            if (this.chatPagination.has(userId)) {
+                this.chatPagination.get(userId).loading = false;
+            }
         }
     }
 
     displayMessages(messages, userId) {
         const container = document.getElementById(`chatMessages-${userId}`);
         if (!container) return;
+
+        console.log(`📄 Displaying ${messages.length} messages for user ${userId}`);
+
+        // API already returns messages in chronological order (oldest first)
+        // No need to reverse - just display them as-is
 
         let html = '';
         let lastDate = null;
@@ -316,6 +432,8 @@ class MessagesPage {
             const messageElement = tempDiv.querySelector('.message');
             if (messageElement) {
                 messageElement.dataset.senderId = msg.senderId;
+                messageElement.dataset.messageId = msg.id;
+                messageElement.dataset.createdAt = msg.createdAt;
             }
             html += tempDiv.innerHTML;
 
@@ -325,8 +443,107 @@ class MessagesPage {
 
         container.innerHTML = html;
 
-        // Scroll to bottom
+        // Add scroll event listener for pagination
+        this.addScrollListener(container, userId);
+
+        // Scroll to bottom to show most recent messages
         container.scrollTop = container.scrollHeight;
+    }
+
+    prependMessages(messages, userId) {
+        const container = document.getElementById(`chatMessages-${userId}`);
+        if (!container) return;
+
+        if (messages.length === 0) return;
+
+        // Store current scroll position
+        const scrollHeight = container.scrollHeight;
+        const scrollTop = container.scrollTop;
+
+        // API already returns messages in chronological order (oldest first)
+        // No need to reverse - just display them as-is
+
+        // Get the first existing message to check for date separator needs
+        const firstExistingMessage = container.querySelector('.message');
+        let needsDateSeparatorAfter = false;
+
+        if (firstExistingMessage && messages.length > 0) {
+            const firstExistingDate = new Date(firstExistingMessage.dataset.createdAt).toDateString();
+            const lastNewMessageDate = new Date(messages[messages.length - 1].createdAt).toDateString();
+            needsDateSeparatorAfter = firstExistingDate !== lastNewMessageDate;
+        }
+
+        let html = '';
+        let lastDate = null;
+        let lastSender = null;
+
+        messages.forEach((msg, index) => {
+            const msgDate = new Date(msg.createdAt).toDateString();
+
+            // Add date separator if date changed
+            if (lastDate && lastDate !== msgDate) {
+                html += this.createDateSeparator(msgDate);
+            } else if (!lastDate) {
+                html += this.createDateSeparator(msgDate);
+            }
+
+            // Check if this is a consecutive message from same sender
+            const isSameSender = lastSender === msg.senderId;
+            const messageHTML = this.createMessageHTML(msg, isSameSender);
+
+            // Add message data attributes
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = messageHTML;
+            const messageElement = tempDiv.querySelector('.message');
+            if (messageElement) {
+                messageElement.dataset.senderId = msg.senderId;
+                messageElement.dataset.messageId = msg.id;
+                messageElement.dataset.createdAt = msg.createdAt;
+            }
+            html += tempDiv.innerHTML;
+
+            lastDate = msgDate;
+            lastSender = msg.senderId;
+        });
+
+        // Add date separator between old and new messages if needed
+        if (needsDateSeparatorAfter && firstExistingMessage) {
+            const firstExistingDate = new Date(firstExistingMessage.dataset.createdAt).toDateString();
+            html += this.createDateSeparator(firstExistingDate);
+        }
+
+        // Prepend the older messages
+        container.insertAdjacentHTML('afterbegin', html);
+
+        // Restore scroll position (maintain relative position)
+        const newScrollHeight = container.scrollHeight;
+        container.scrollTop = scrollTop + (newScrollHeight - scrollHeight);
+    }
+
+    addScrollListener(container, userId) {
+        // Remove existing listener if any
+        if (container.scrollHandler) {
+            container.removeEventListener('scroll', container.scrollHandler);
+        }
+
+        // Create throttled scroll handler
+        const scrollHandler = this.throttle((event) => {
+            const container = event.target;
+            const scrollTop = container.scrollTop;
+            const scrollThreshold = 100; // Load more when within 100px of top
+
+            // Check if scrolled near the top
+            if (scrollTop <= scrollThreshold) {
+                console.log(`📜 Scroll threshold reached for user ${userId}, loading more messages...`);
+                this.loadChatMessages(userId, true); // Load more messages
+            }
+        }, 300); // Throttle to 300ms
+
+        // Store reference for cleanup
+        container.scrollHandler = scrollHandler;
+
+        // Add event listener
+        container.addEventListener('scroll', scrollHandler);
     }
 
     createMessageHTML(message, isSameSender = false) {
@@ -375,6 +592,12 @@ class MessagesPage {
         const container = document.getElementById(`chatMessages-${this.currentChatUser}`);
         if (!container) return;
 
+        // Update pagination offset to account for new message
+        if (this.chatPagination.has(this.currentChatUser)) {
+            const pagination = this.chatPagination.get(this.currentChatUser);
+            pagination.offset += 1;
+        }
+
         // Check if we need a date separator
         const lastMessage = container.querySelector('.message:last-child');
         let needsDateSeparator = false;
@@ -399,12 +622,14 @@ class MessagesPage {
 
         html += this.createMessageHTML(message, isSameSender);
 
-        // Add sender ID as data attribute for future reference
+        // Add message data attributes
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
         const messageElement = tempDiv.querySelector('.message');
         if (messageElement) {
             messageElement.dataset.senderId = message.senderId;
+            messageElement.dataset.messageId = message.id;
+            messageElement.dataset.createdAt = message.createdAt;
         }
 
         container.insertAdjacentHTML('beforeend', tempDiv.innerHTML);
@@ -478,6 +703,18 @@ class MessagesPage {
 
     closeChat() {
         if (this.currentChatWindow) {
+            // Clean up scroll listener
+            const container = this.currentChatWindow.querySelector('[id^="chatMessages-"]');
+            if (container && container.scrollHandler) {
+                container.removeEventListener('scroll', container.scrollHandler);
+                container.scrollHandler = null;
+            }
+
+            // Reset pagination for this user
+            if (this.currentChatUser) {
+                this.chatPagination.delete(this.currentChatUser);
+            }
+
             this.currentChatWindow.remove();
             this.currentChatWindow = null;
             this.currentChatUser = null;
@@ -686,7 +923,7 @@ window.initMessagesPage = initMessagesPage;
 
 // Export MessagesPage class for router
 window.MessagesPage = {
-    render: function() {
+    render: async function() {
         const container = document.getElementById('main-content');
         if (!container) return;
 
@@ -697,8 +934,8 @@ window.MessagesPage = {
                         <h2>Messages</h2>
                     </div>
                     <div class="sidebar-tabs">
-                        <button class="sidebar-tab active" onclick="messagesPage.showTab('conversations', this)">Conversations</button>
-                        <button class="sidebar-tab" onclick="messagesPage.showTab('online', this)">Online Users</button>
+                        <button class="sidebar-tab active" onclick="window.messagesPage.showTab('conversations', this)">Conversations</button>
+                        <button class="sidebar-tab" onclick="window.messagesPage.showTab('online', this)">Online Users</button>
                     </div>
                     <div class="sidebar-content">
                         <div id="conversationsContainer" class="tab-content active">
@@ -719,8 +956,11 @@ window.MessagesPage = {
         `;
 
         // Initialize the messages page
-        if (!messagesPage) {
-            messagesPage = new MessagesPage();
+        if (!window.messagesPage) {
+            window.messagesPage = new MessagesPage();
         }
+
+        // Always call init to handle re-entry
+        await window.messagesPage.init();
     }
 };

@@ -156,22 +156,68 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("🔒 Logout attempt started")
+
 	// Get session from request
 	session, err := auth.GetSessionFromRequest(r)
-	if err != nil || session == nil {
-		RenderError(w, "No active session", http.StatusBadRequest)
+	if err != nil {
+		log.Printf("❌ Logout error - Failed to get session from request: %v", err)
+		// Still clear the cookie even if session retrieval fails
+		auth.ClearSessionCookie(w)
+		RenderSuccess(w, "Logout successful", nil)
 		return
 	}
 
-	// Delete session
-	if err := auth.DeleteSession(session.ID); err != nil {
-		RenderError(w, "Failed to logout", http.StatusInternalServerError)
+	if session == nil {
+		log.Printf("⚠️ Logout warning - No active session found, clearing cookie anyway")
+		// Still clear the cookie even if no session exists
+		auth.ClearSessionCookie(w)
+		RenderSuccess(w, "Logout successful", nil)
 		return
+	}
+
+	log.Printf("🔒 Deleting session: %s for user: %s", session.ID, session.UserID)
+
+	// Delete session from database
+	if err := auth.DeleteSession(session.ID); err != nil {
+		log.Printf("❌ Logout error - Failed to delete session: %v", err)
+		// Still clear the cookie even if database deletion fails
+		auth.ClearSessionCookie(w)
+		RenderError(w, "Failed to logout completely, but session cleared", http.StatusInternalServerError)
+		return
+	}
+
+	// Remove user from online_users table for this specific session
+	_, err = database.DB.Exec(`
+		DELETE FROM online_users WHERE user_id = ? AND session_id = ?
+	`, session.UserID, session.ID)
+	if err != nil {
+		log.Printf("⚠️ Logout warning - Failed to remove user from online_users: %v", err)
+		// Don't fail the logout, just log the warning
+	} else {
+		log.Printf("✅ User %s session %s removed from online_users", session.UserID, session.ID)
+	}
+
+	// Check if user has any remaining sessions online
+	var remainingSessions int
+	err = database.DB.QueryRow(`
+		SELECT COUNT(*) FROM online_users WHERE user_id = ?
+	`, session.UserID).Scan(&remainingSessions)
+
+	if err != nil {
+		log.Printf("⚠️ Logout warning - Failed to check remaining sessions: %v", err)
+	} else if remainingSessions == 0 {
+		// User has no more online sessions, broadcast offline status
+		log.Printf("📡 Broadcasting offline status for user %s (no remaining sessions)", session.UserID)
+		websocket.BroadcastUserOffline(session.UserID)
+	} else {
+		log.Printf("📡 User %s still has %d remaining online sessions", session.UserID, remainingSessions)
 	}
 
 	// Clear session cookie
 	auth.ClearSessionCookie(w)
 
+	log.Printf("✅ Logout successful for session: %s", session.ID)
 	RenderSuccess(w, "Logout successful", nil)
 }
 

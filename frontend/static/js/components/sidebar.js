@@ -13,20 +13,22 @@ window.SidebarComponent = {
 
     bindEvents() {
         console.log('👥 Binding sidebar events...');
-        // Listen for WebSocket user status updates
+
+        // Listen for user status updates via custom events
+        window.addEventListener('user_status', (event) => {
+            console.log('👥 Received user_status event:', event.detail);
+            this.updateUserStatus(event.detail);
+        });
+
+        // Also try to bind directly to WebSocket if available
         if (window.forumApp?.websocket) {
-            console.log('👥 WebSocket found, adding user_status listener');
-            window.forumApp.websocket.addEventListener('user_status', (data) => {
-                console.log('👥 Received user_status event:', data);
-                this.updateUserStatus(data);
-            });
+            console.log('👥 WebSocket found, events will be handled via main app');
         } else {
             console.log('👥 WebSocket not found, will retry later');
             // Retry binding events after a delay if WebSocket isn't ready yet
             setTimeout(() => {
                 if (window.forumApp?.websocket && !this.eventsBound) {
-                    console.log('👥 Retrying WebSocket event binding...');
-                    this.bindEvents();
+                    console.log('👥 WebSocket now available');
                     this.eventsBound = true;
                 }
             }, 2000);

@@ -91,34 +91,60 @@ window.auth = {
      * Logout user
      */
     async logout() {
+        console.log('🔒 Starting logout process...');
+
         try {
-            await window.api.logout();
-            
+            // Attempt server logout
+            const response = await window.api.logout();
+            console.log('✅ Server logout successful:', response);
+
             this.currentUser = null;
             this.isAuthenticated = false;
-            
-            // Disconnect WebSocket
+
+            // Close WebSocket
             if (window.forumApp && window.forumApp.websocket) {
-                window.forumApp.websocket.disconnect();
+                console.log('🔒 Auth: Closing WebSocket');
+                window.forumApp.websocket.close();
+                console.log('🔒 Auth: WebSocket closed successfully');
             }
-            
+
             // Show success notification
             if (window.forumApp && window.forumApp.notificationComponent) {
+                console.log('🔒 Auth: Showing success notification');
                 window.forumApp.notificationComponent.info('You have been logged out.');
+                console.log('🔒 Auth: Success notification completed');
             }
-            
+
             // Redirect to home page
             if (window.forumApp && window.forumApp.router) {
                 window.forumApp.router.navigate('/');
             }
-            
+
             return { success: true };
         } catch (error) {
-            console.error('Logout error:', error);
-            // Even if logout fails on server, clear local state
+            console.error('❌ Logout error:', error);
+
+            // Even if logout fails on server, clear local state for security
             this.currentUser = null;
             this.isAuthenticated = false;
-            throw error;
+
+            // Close WebSocket anyway
+            if (window.forumApp && window.forumApp.websocket) {
+                window.forumApp.websocket.close();
+            }
+
+            // Show warning notification
+            if (window.forumApp && window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.warning('Logout completed locally. You have been signed out.');
+            }
+
+            // Redirect anyway for security
+            if (window.forumApp && window.forumApp.router) {
+                window.forumApp.router.navigate('/');
+            }
+
+            // Don't throw error - logout should always succeed from user perspective
+            return { success: true, warning: 'Local logout completed' };
         }
     },
 

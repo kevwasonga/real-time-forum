@@ -240,11 +240,21 @@ window.api.request = async function(endpoint, options = {}) {
     try {
         return await originalRequest.call(this, endpoint, options);
     } catch (error) {
+        console.log('🔍 API request error:', error.message, 'for endpoint:', endpoint);
+
         // Handle authentication errors
-        if (error.message.includes('Authentication required') || 
-            error.message.includes('Not authenticated')) {
-            
+        if (error.message.includes('Authentication required') ||
+            error.message.includes('Not authenticated') ||
+            error.message.includes('No active session')) {
+
+            console.log('🔒 Authentication error detected, clearing local state');
+
             // Clear any stored user data
+            if (window.auth) {
+                window.auth.currentUser = null;
+                window.auth.isAuthenticated = false;
+            }
+
             if (window.forumApp) {
                 window.forumApp.currentUser = null;
                 window.forumApp.isAuthenticated = false;

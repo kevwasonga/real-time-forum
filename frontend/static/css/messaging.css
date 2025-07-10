@@ -189,6 +189,31 @@
     color: var(--text-muted);
 }
 
+.error-message {
+    text-align: center;
+    color: var(--error-color);
+    padding: var(--spacing-lg);
+}
+
+.error-message p {
+    margin-bottom: var(--spacing-md);
+}
+
+.retry-btn {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background-color var(--transition-fast);
+}
+
+.retry-btn:hover {
+    background-color: var(--primary-hover);
+}
+
 .tab-content {
     display: block;
 }

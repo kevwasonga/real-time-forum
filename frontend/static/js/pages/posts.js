@@ -683,6 +683,16 @@ window.PostsPage = {
             return;
         }
 
+        // Check if user is still authenticated before attempting edit
+        if (!window.auth || !window.auth.isAuthenticated) {
+            if (window.forumApp.notificationComponent) {
+                window.forumApp.notificationComponent.error('You must be logged in to edit comments');
+            }
+            // Restore original content
+            contentDiv.innerHTML = window.utils.escapeHtml(originalContent);
+            return;
+        }
+
         try {
             console.log('🔄 Updating comment:', commentId, 'content:', newContent.trim());
 
@@ -701,10 +711,41 @@ window.PostsPage = {
                 throw new Error(response.message || 'Failed to update comment');
             }
         } catch (error) {
-            console.error('Failed to update comment:', error);
-            if (window.forumApp.notificationComponent) {
-                window.forumApp.notificationComponent.error(error.message || 'Failed to update comment');
+            console.error('❌ Failed to update comment:', error);
+
+            // Check if this is an authentication error
+            if (error.message && (error.message.includes('Authentication required') ||
+                                 error.message.includes('Not authenticated') ||
+                                 error.message.includes('No active session'))) {
+
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.error('Session expired. Please log in again to edit comments.');
+                }
+
+                // Clear auth state and redirect to login
+                if (window.auth) {
+                    window.auth.currentUser = null;
+                    window.auth.isAuthenticated = false;
+                }
+
+                if (window.forumApp) {
+                    window.forumApp.currentUser = null;
+                    window.forumApp.isAuthenticated = false;
+                    window.forumApp.updateAuthUI();
+
+                    // Redirect to login after a short delay
+                    setTimeout(() => {
+                        if (window.forumApp.router) {
+                            window.forumApp.router.navigate('/login');
+                        }
+                    }, 2000);
+                }
+            } else {
+                if (window.forumApp.notificationComponent) {
+                    window.forumApp.notificationComponent.error(error.message || 'Failed to update comment');
+                }
             }
+
             // Restore original content on error
             this.cancelCommentEdit(contentDiv, originalContent);
         }
